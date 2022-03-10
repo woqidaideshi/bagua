@@ -11,7 +11,6 @@ from torch.optim.lr_scheduler import StepLR
 import logging
 import bagua.torch_api as bagua
 
-
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
@@ -38,9 +37,10 @@ class Net(nn.Module):
         return output
 
 
-def train(args, model, train_loader, optimizer, epoch):
+def train(args, model, train_loader, optimizer, epoch, rank=0):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
+        # print("epoch: %d, batch: %d, datasize: %d" % (epoch, batch_idx, len(data)))
 
         data, target = data.cuda(), target.cuda()
         optimizer.zero_grad()
@@ -53,7 +53,8 @@ def train(args, model, train_loader, optimizer, epoch):
             optimizer.step()
         if batch_idx % args.log_interval == 0:
             logging.info(
-                "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
+                "Train Rank: {} Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
+                    rank,
                     epoch,
                     batch_idx * len(data),
                     len(train_loader.dataset),
@@ -63,7 +64,7 @@ def train(args, model, train_loader, optimizer, epoch):
             )
 
 
-def test(model, test_loader):
+def test(model, test_loader, rank=0):
     model.eval()
     test_loss = 0
     correct = 0
@@ -82,7 +83,8 @@ def test(model, test_loader):
     test_loss /= len(test_loader.dataset)
 
     logging.info(
-        "\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
+        "\nTest Rank: {} set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
+            rank,
             test_loss,
             correct,
             len(test_loader.dataset),
@@ -168,6 +170,7 @@ def main():
     )
 
     args = parser.parse_args()
+    print("set_deterministic:", args.set_deterministic)
     if args.set_deterministic:
         print("set_deterministic: True")
         np.random.seed(666)
@@ -179,11 +182,13 @@ def main():
         torch.set_printoptions(precision=10)
 
     torch.cuda.set_device(bagua.get_local_rank())
+    print("current rank: ", bagua.get_local_rank())
     bagua.init_process_group()
 
     logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.ERROR)
     if bagua.get_rank() == 0:
         logging.getLogger().setLevel(logging.INFO)
+    # logging.getLogger().setLevel(logging.INFO)
 
     train_kwargs = {"batch_size": args.batch_size}
     test_kwargs = {"batch_size": args.test_batch_size}
@@ -246,12 +251,21 @@ def main():
             model.parameters(), lr=args.lr, warmup_steps=100
         )
         algorithm = q_adam.QAdamAlgorithm(optimizer)
-    elif args.algorithm == "async":
-        from bagua.torch_api.algorithms import async_model_average
+    elif args.algorithm == "qgadam":
+        from bagua.torch_api.algorithms import q_adam
 
-        algorithm = async_model_average.AsyncModelAverageAlgorithm(
-            sync_interval_ms=args.async_sync_interval,
+        optimizer = q_adam.QAdamOptimizer(
+            model.parameters(), lr=args.lr, warmup_steps=100
         )
+        algorithm = q_adam.QGAdamAlgorithm(optimizer)
+    elif args.algorithm == "floatgrad":
+        from bagua.torch_api.algorithms import bytegrad
+
+        algorithm = bytegrad.Float16GradAlgorithm()
+    # elif args.algorithm == "low_precision_decentralized_py":
+    #     from bagua.torch_api.algorithms import bytegrad
+
+    #     algorithm = bytegrad.Float16GradAlgorithm()
     else:
         raise NotImplementedError
 
@@ -269,12 +283,12 @@ def main():
         if args.algorithm == "async":
             model.bagua_algorithm.resume(model)
 
-        train(args, model, train_loader, optimizer, epoch)
+        train(args, model, train_loader, optimizer, epoch, rank=bagua.get_rank())
 
         if args.algorithm == "async":
             model.bagua_algorithm.abort(model)
 
-        test(model, test_loader)
+        test(model, test_loader, rank=bagua.get_rank())
         scheduler.step()
 
     if args.save_model:

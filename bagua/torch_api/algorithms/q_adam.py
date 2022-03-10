@@ -103,6 +103,7 @@ class QAdamOptimizer(Optimizer):
                 step_size = lr / bias_correction1
                 update = state["exp_avg"] / denom
                 param.data.add_(-step_size * update)
+        print("----QAdamOptimizer step({}) completed.", self.optimizer_step_id)
 
         return loss
 
@@ -143,7 +144,59 @@ class QAdamAlgorithmImpl(AlgorithmImpl):
         else:
             return False
 
+    def init_forward_pre_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        """Given a :class:`~bagua.torch_api.data_parallel.BaguaDistributedDataParallel`, return a hook function that will be executed before the
+        forward process.
+
+        Args:
+            bagua_ddp: :class:`bagua.torch_api.data_parallel.BaguaDistributedDataParallel`.
+
+        Returns:
+            A function that takes the model's input.
+        """
+
+        def hook():
+            print("-----QAdamAlgorithmImpl init_forward_pre_hook({})!", self.optimizer_step_id)
+            pass
+
+        return hook
+
+    def init_post_backward_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        """Given a :class:`~bagua.torch_api.data_parallel.BaguaDistributedDataParallel`, return a hook function that will be executed when the
+        backward pass is done.
+
+        Args:
+            bagua_ddp: :class:`bagua.torch_api.data_parallel.BaguaDistributedDataParallel`.
+
+        Returns:
+            A function that takes no argument.
+        """
+
+        def hook():
+            print("----QAdamAlgorithmImpl init_post_backward_hook({})!", self.optimizer_step_id)
+            bagua_ddp._bagua_backend.wait_pending_comm_ops()
+
+        return hook
+
+    def init_post_optimizer_step_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        """Given a :class:`~bagua.torch_api.data_parallel.BaguaDistributedDataParallel`, return a hook function that will be executed when the
+        ``optimizer.step()`` is done.
+
+        Args:
+            bagua_ddp: :class:`bagua.torch_api.data_parallel.BaguaDistributedDataParallel`.
+
+        Returns:
+            A function that gets called after an optimizer's ``step()`` method is called. The function takes the optimizer as its argument.
+        """
+
+        def hook():
+            print("----QAdamAlgorithmImpl init_post_optimizer_step_hook({})!", self.optimizer_step_id)
+            pass
+
+        return hook
+
     def init_tensors(self, bagua_ddp: BaguaDistributedDataParallel):
+        print("----QAdamAlgorithmImpl init_tensors({})!", self.optimizer_step_id)
         parameters = bagua_ddp.bagua_build_params()
 
         for idx, (name, param) in enumerate(parameters.__reversed__()):
@@ -182,6 +235,7 @@ class QAdamAlgorithmImpl(AlgorithmImpl):
     def tensors_to_buckets(
         self, tensors: List[List[BaguaTensor]], do_flatten: bool
     ) -> List[BaguaBucket]:
+        print("----QAdamAlgorithmImpl tensors_to_buckets({})!", self.optimizer_step_id)
         bagua_buckets = []
         for idx, bucket in enumerate(tensors):
             bagua_bucket = BaguaBucket(
@@ -198,6 +252,7 @@ class QAdamAlgorithmImpl(AlgorithmImpl):
         bagua_ddp: BaguaDistributedDataParallel,
         bucket: BaguaBucket,
     ):
+        print("----QAdamAlgorithmImpl init_operations({})!", self.optimizer_step_id)
         bucket.clear_ops()
         if self.optimizer_step_id < self.warmup_steps:
             bucket.append_centralized_synchronous_op(
@@ -213,6 +268,7 @@ class QAdamAlgorithmImpl(AlgorithmImpl):
                     tensor.bagua_getter_closure().mul_(beta1).add_(
                         tensor.grad, alpha=1 - beta1
                     )
+                print("----QAdamOptimizer calculate_momentum({}).", self.optimizer_step_id)
 
             bucket.append_python_op(calculate_momentum, group=self.process_group)
             bucket.append_centralized_synchronous_op(
@@ -236,7 +292,7 @@ class QAdamAlgorithmImpl(AlgorithmImpl):
                 parameter.bagua_backend_tensor().data_ptr() == parameter.grad.data_ptr()
             ), "bagua backend tensor data_ptr should match _q_adam_grad data_ptr"
             parameter.bagua_mark_communication_ready()
-
+        print("----QAdamAlgorithmImpl init_backward_hook({})!", self.optimizer_step_id)
         return (
             hook_grad if self.optimizer_step_id < self.warmup_steps else hook_momentum
         )
@@ -258,6 +314,138 @@ class QAdamAlgorithm(Algorithm):
 
     def reify(self, process_group: BaguaProcessGroup) -> QAdamAlgorithmImpl:
         return QAdamAlgorithmImpl(
+            process_group,
+            q_adam_optimizer=self.optimizer,
+            hierarchical=self.hierarchical,
+        )
+
+
+class QGAdamAlgorithmImpl(QAdamAlgorithmImpl):
+
+    def init_forward_pre_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        """Given a :class:`~bagua.torch_api.data_parallel.BaguaDistributedDataParallel`, return a hook function that will be executed before the
+        forward process.
+
+        Args:
+            bagua_ddp: :class:`bagua.torch_api.data_parallel.BaguaDistributedDataParallel`.
+
+        Returns:
+            A function that takes the model's input.
+        """
+
+        def hook():
+            print("QGAdamAlgorithmImpl init_forward_pre_hook!")
+            pass
+
+        return hook
+
+    def init_post_backward_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        """Given a :class:`~bagua.torch_api.data_parallel.BaguaDistributedDataParallel`, return a hook function that will be executed when the
+        backward pass is done.
+
+        Args:
+            bagua_ddp: :class:`bagua.torch_api.data_parallel.BaguaDistributedDataParallel`.
+
+        Returns:
+            A function that takes no argument.
+        """
+
+        def hook():
+            print("QGAdamAlgorithmImpl init_post_backward_hook!")
+            bagua_ddp._bagua_backend.wait_pending_comm_ops()
+
+        return hook
+
+    def init_post_optimizer_step_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        """Given a :class:`~bagua.torch_api.data_parallel.BaguaDistributedDataParallel`, return a hook function that will be executed when the
+        ``optimizer.step()`` is done.
+
+        Args:
+            bagua_ddp: :class:`bagua.torch_api.data_parallel.BaguaDistributedDataParallel`.
+
+        Returns:
+            A function that gets called after an optimizer's ``step()`` method is called. The function takes the optimizer as its argument.
+        """
+
+        def hook():
+            print("QGAdamAlgorithmImpl init_post_optimizer_step_hook!")
+            pass
+
+        return hook
+
+    def init_tensors(self, bagua_ddp: BaguaDistributedDataParallel):
+        parameters = bagua_ddp.bagua_build_params()
+
+        for idx, (name, param) in enumerate(parameters.__reversed__()):
+            param._q_adam_name = name
+            param._q_adam_idx = idx
+
+        tensor_groups = []
+        for group in self.optimizer.param_groups:
+            for param in group["params"]:
+                if self.optimizer_step_id < self.warmup_steps:
+                    # register grad
+                    registered_tensor = param.ensure_bagua_tensor(
+                        param._q_adam_name,
+                        bagua_ddp.bagua_module_name,
+                        getter_closure=lambda param: param.grad,
+                        setter_closure=lambda param, t: setattr(param, "data", t),
+                    )
+                else:
+                    # register first momentum
+                    def set_momentum_fn(param, t):
+                        self.optimizer.state[param]["exp_avg"] = t
+
+                    registered_tensor = param.ensure_bagua_tensor(
+                        param._q_adam_name,
+                        bagua_ddp.bagua_module_name,
+                        getter_closure=lambda param: self.optimizer.state[param][
+                            "exp_avg"
+                        ],
+                        setter_closure=set_momentum_fn,
+                    )
+
+                tensor_groups.append(registered_tensor)
+        tensor_groups.sort(key=lambda x: x._q_adam_idx)
+        return tensor_groups
+
+    def init_backward_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        def hook_momentum(parameter_name, parameter):
+            print("QGAdamAlgorithmImpl init_backward_hook!")
+            assert (
+                parameter.bagua_backend_tensor().data_ptr()
+                == self.optimizer.state[parameter]["exp_avg"].data_ptr()
+            ), "bagua backend tensor data_ptr should match _q_adam_momentum data_ptr"
+            parameter.bagua_mark_communication_ready()
+
+        def hook_data(parameter_name, parameter):
+            print("QGAdamAlgorithmImpl init_backward_hook!")
+            assert (
+                parameter.bagua_backend_tensor().data_ptr() == parameter.data.data_ptr()
+            ), "bagua backend tensor data_ptr should match _q_adam_data data_ptr"
+            parameter.bagua_mark_communication_ready()
+
+        return (
+            hook_data if self.optimizer_step_id < self.warmup_steps else hook_momentum
+        )
+
+
+class QGAdamAlgorithm(QAdamAlgorithm):
+    def __init__(self, q_adam_optimizer: QAdamOptimizer, hierarchical: bool = True):
+        """
+        Create an instance of the
+        `QAdam Algorithm <https://tutorials.baguasys.com/algorithms/q-adam>`_
+        .
+
+        Args:
+            q_adam_optimizer: A QAdamOptimizer initialized with model parameters.
+            hierarchical: Enable hierarchical communication.
+        """
+        self.hierarchical = hierarchical
+        self.optimizer = q_adam_optimizer
+
+    def reify(self, process_group: BaguaProcessGroup) -> QGAdamAlgorithmImpl:
+        return QGAdamAlgorithmImpl(
             process_group,
             q_adam_optimizer=self.optimizer,
             hierarchical=self.hierarchical,

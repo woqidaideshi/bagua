@@ -31,3 +31,9 @@ GlobalAlgorithmRegistry.register(
     async_model_average.AsyncModelAverageAlgorithm,
     description="Asynchronous Model Average Algorithm",
 )
+GlobalAlgorithmRegistry.register(
+    "qgadam", q_adam.QGAdamAlgorithm, description="QGAdam Algorithm"
+)
+GlobalAlgorithmRegistry.register(
+    "floatgrad", bytegrad.Float16GradAlgorithm, description="Float16 Algorithm"
+)
