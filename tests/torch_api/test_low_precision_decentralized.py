@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from tests.internal.common_utils import find_free_port
-from tests.internal.compressor import MinMaxUInt8
+from tests.internal.compressor import MinMaxUInt8, MinMaxFloat16, MinMax2Float16
 import os
 import unittest
 import multiprocessing
@@ -109,7 +109,7 @@ def run_model(rank, nprocs, nranks, hierarchical, communication_interval, result
 
 
 def run_torch_model(
-    rank, nprocs, hierarchical, communication_interval, results, backend, env
+    rank, nprocs, hierarchical, communication_interval, results, backend, env, compressor
 ):
     _init_torch_env(rank, nprocs, backend)
 
@@ -120,7 +120,7 @@ def run_torch_model(
 
     # wrap model
     model = LowPrecDecentralizedAlgor(
-        model, optimizer, hierarchical, communication_interval
+        model, optimizer, hierarchical, communication_interval, compressor=compressor
     )
 
     ret = results[rank]
@@ -155,13 +155,20 @@ class Result(object):
 
 
 class LowPrecDecentralizedAlgor(nn.Module):
-    def __init__(self, module, optimizer, hierarchical, communication_interval):
+    def __init__(self, module, optimizer, hierarchical, communication_interval, compressor=None):
         super(LowPrecDecentralizedAlgor, self).__init__()
         self.module = module
         self.optimizer = optimizer
         self.hierarchical = hierarchical
         self.communication_interval = communication_interval
-        self.compressor = MinMaxUInt8()
+        if compressor == "float16":
+            self.compressor = MinMaxFloat16()
+        elif compressor == "2float16":
+            self.compressor = MinMax2Float16
+        elif compressor == "int":
+            self.compressor = MinMaxUInt8()
+        else:
+            self.compressor = None
         self.step_count = 0
 
         assert torch.distributed.is_initialized()
@@ -220,20 +227,42 @@ class LowPrecDecentralizedAlgor(nn.Module):
             x += 1 / 3 * self.right_peer_weight
             x -= 5 / 3 * self.weight
 
-            minmax, compressed = self.compressor.compress(x)
-            left_compressed, right_compressed = communicate_with_peers(
-                compressed, comm_size
-            )
-            left_minmax, right_minmax = communicate_with_peers(minmax, comm_size)
+            if self.compressor:
+                if isinstance(self.compressor, MinMaxUInt8):
+                    minmax, compressed = self.compressor.compress(x)
+                    left_compressed, right_compressed = communicate_with_peers(
+                        compressed, comm_size
+                    )
+                    left_minmax, right_minmax = communicate_with_peers(minmax, comm_size)
 
-            self.left_peer_weight += self.compressor.decompress(
-                left_minmax, left_compressed
-            )
-            self.right_peer_weight += self.compressor.decompress(
-                right_minmax, right_compressed
-            )
+                    self.left_peer_weight += self.compressor.decompress(
+                        left_minmax, left_compressed
+                    )
+                    self.right_peer_weight += self.compressor.decompress(
+                        right_minmax, right_compressed
+                    )
 
-            diff = self.compressor.decompress(minmax, compressed)
+                    diff = self.compressor.decompress(minmax, compressed)
+                elif isinstance(self.compressor, MinMaxFloat16) or isinstance(self.compressor, MinMax2Float16):
+                    compressed = self.compressor.compress(x)
+                    left_compressed, right_compressed = communicate_with_peers(
+                        compressed, comm_size
+                    )
+                    self.left_peer_weight += self.compressor.decompress(left_compressed) # left_compressed
+                    self.right_peer_weight += self.compressor.decompress(right_compressed) # right_compressed
+                    # diff = self.compressor.decompress(compressed)
+                    if isinstance(self.compressor, MinMaxFloat16):
+                        diff = compressed
+                    else:
+                        diff = self.compressor.decompress(compressed)
+
+            else:
+                left_uncompressed, right_uncompressed = communicate_with_peers(
+                    x, comm_size
+                )
+                self.left_peer_weight += left_uncompressed
+                self.right_peer_weight += right_uncompressed
+                diff = x
             x.copy_(self.weight + diff)
             self.weight.copy_(x)
 
@@ -316,7 +345,7 @@ class TestLowPrecisionDecentralized(unittest.TestCase):
                     )
                 )
 
-    def run_diff_locally(self, nprocs, hierarchical, communication_interval, backend):
+    def run_diff_locally(self, nprocs, hierarchical, communication_interval, backend, compressor=None):
         env = {}
 
         mp = multiprocessing.get_context("spawn")
@@ -333,6 +362,7 @@ class TestLowPrecisionDecentralized(unittest.TestCase):
                     torch_results,
                     backend,
                     env,
+                    compressor,
                 ),
             )
             p.start()
@@ -403,17 +433,17 @@ class TestLowPrecisionDecentralized(unittest.TestCase):
 
     @skip_if_cuda_not_available()
     def test_compare(self):
+        compressor="float16"  # 2float16, float16
         nprocs = torch.cuda.device_count()
         self.run_diff_locally(
-            nprocs, hierarchical=False, communication_interval=1, backend="gloo"
+            nprocs, hierarchical=False, communication_interval=1, backend="gloo", compressor=compressor
         )
         self.run_diff_locally(
-            nprocs, hierarchical=False, communication_interval=2, backend="gloo"
+            nprocs, hierarchical=False, communication_interval=2, backend="gloo", compressor=compressor
         )
         self.run_diff_locally(
-            nprocs, hierarchical=True, communication_interval=1, backend="nccl"
+            nprocs, hierarchical=True, communication_interval=1, backend="nccl", compressor=compressor
         )
-
 
 if __name__ == "__main__":
     unittest.main()
