@@ -11,7 +11,7 @@ __pycache__/
 **/**/*.qdrep
 **/**/*.sqlite
 **/**/*.ncu-rep
-**/**/*.json
+# **/**/*.json
 **/**/*.tar
 bagua.egg-info/
 dbg.h

@@ -1,0 +1,28 @@
+{
+	// See https://go.microsoft.com/fwlink/?LinkId=733558
+	// for the documentation about the tasks.json format
+	"version": "2.0.0",
+	"command": "sh",
+	"args": ["-c"],
+	"presentation": {
+		"reveal": "always"
+	},
+	"tasks": [
+		{
+			"label": "mnist",
+			"type": "shell",
+			"command": "export CUDA_VISIBLE_DEVICES=4,5,6,7; cd /mnt/ds3lab-scratch/yafen/workspaces/bagua/examples/mnist; python3 -m bagua.distributed.launch --nproc_per_node=1 main.py --algorithm gradient_allreduce",
+			"problemMatcher": [
+				"$eslint-compact"
+			]
+		},
+        {
+			"label": "mnist-test",
+			"type": "shell",
+			"command": "export CUDA_VISIBLE_DEVICES=0,1,2,3; cd /mnt/ds3lab-scratch/yafen/workspaces/bagua/examples/mnist; python3 test.py",
+			"problemMatcher": [
+				"$eslint-compact"
+			]
+		}
+	]
+}
