@@ -62,6 +62,8 @@ class QAdamOptimizer(Optimizer):
             with torch.enable_grad():
                 loss = closure()
 
+        state_step = 0
+
         for group_id, group in enumerate(self.param_groups):
 
             lr = group["lr"]
@@ -83,7 +85,7 @@ class QAdamOptimizer(Optimizer):
 
                 state["step"] += 1
                 step_id = state["step"]
-
+                state_step = step_id
                 grad = param.grad
                 if weight_decay != 0:
                     grad = grad.add(param, alpha=weight_decay)
@@ -103,7 +105,7 @@ class QAdamOptimizer(Optimizer):
                 step_size = lr / bias_correction1
                 update = state["exp_avg"] / denom
                 param.data.add_(-step_size * update)
-        print("----QAdamOptimizer step({}) completed.", self.optimizer_step_id)
+        print("----QAdamOptimizer step({}) completed.".format(state_step))
 
         return loss
 
@@ -155,8 +157,8 @@ class QAdamAlgorithmImpl(AlgorithmImpl):
             A function that takes the model's input.
         """
 
-        def hook():
-            print("-----QAdamAlgorithmImpl init_forward_pre_hook({})!", self.optimizer_step_id)
+        def hook(input):
+            print("-----QAdamAlgorithmImpl init_forward_pre_hook({})!".format(self.optimizer_step_id))
             pass
 
         return hook
@@ -173,7 +175,7 @@ class QAdamAlgorithmImpl(AlgorithmImpl):
         """
 
         def hook():
-            print("----QAdamAlgorithmImpl init_post_backward_hook({})!", self.optimizer_step_id)
+            print("----QAdamAlgorithmImpl init_post_backward_hook({})!".format(self.optimizer_step_id))
             bagua_ddp._bagua_backend.wait_pending_comm_ops()
 
         return hook
@@ -189,14 +191,14 @@ class QAdamAlgorithmImpl(AlgorithmImpl):
             A function that gets called after an optimizer's ``step()`` method is called. The function takes the optimizer as its argument.
         """
 
-        def hook():
-            print("----QAdamAlgorithmImpl init_post_optimizer_step_hook({})!", self.optimizer_step_id)
+        def hook(optimizer: torch.optim.Optimizer):
+            print("----QAdamAlgorithmImpl init_post_optimizer_step_hook({})!".format(self.optimizer_step_id))
             pass
 
         return hook
 
     def init_tensors(self, bagua_ddp: BaguaDistributedDataParallel):
-        print("----QAdamAlgorithmImpl init_tensors({})!", self.optimizer_step_id)
+        print("----QAdamAlgorithmImpl init_tensors({})!".format(self.optimizer_step_id))
         parameters = bagua_ddp.bagua_build_params()
 
         for idx, (name, param) in enumerate(parameters.__reversed__()):
@@ -218,6 +220,7 @@ class QAdamAlgorithmImpl(AlgorithmImpl):
                     # register first momentum
                     def set_momentum_fn(param, t):
                         self.optimizer.state[param]["exp_avg"] = t
+                        print("----QAdamAlgorithmImpl set_momentum_fn in init_tensors({})!".format(self.optimizer_step_id))
 
                     registered_tensor = param.bagua_ensure_grad().ensure_bagua_tensor(
                         param._q_adam_name,
@@ -235,7 +238,7 @@ class QAdamAlgorithmImpl(AlgorithmImpl):
     def tensors_to_buckets(
         self, tensors: List[List[BaguaTensor]], do_flatten: bool
     ) -> List[BaguaBucket]:
-        print("----QAdamAlgorithmImpl tensors_to_buckets({})!", self.optimizer_step_id)
+        print("----QAdamAlgorithmImpl tensors_to_buckets({})!".format(self.optimizer_step_id))
         bagua_buckets = []
         for idx, bucket in enumerate(tensors):
             bagua_bucket = BaguaBucket(
@@ -252,7 +255,7 @@ class QAdamAlgorithmImpl(AlgorithmImpl):
         bagua_ddp: BaguaDistributedDataParallel,
         bucket: BaguaBucket,
     ):
-        print("----QAdamAlgorithmImpl init_operations({})!", self.optimizer_step_id)
+        print("----QAdamAlgorithmImpl init_operations({})!".format(self.optimizer_step_id))
         bucket.clear_ops()
         if self.optimizer_step_id < self.warmup_steps:
             bucket.append_centralized_synchronous_op(
@@ -268,7 +271,7 @@ class QAdamAlgorithmImpl(AlgorithmImpl):
                     tensor.bagua_getter_closure().mul_(beta1).add_(
                         tensor.grad, alpha=1 - beta1
                     )
-                print("----QAdamOptimizer calculate_momentum({}).", self.optimizer_step_id)
+                print("----QAdamOptimizer calculate_momentum({}).".format(self.optimizer_step_id))
 
             bucket.append_python_op(calculate_momentum, group=self.process_group)
             bucket.append_centralized_synchronous_op(
@@ -292,7 +295,7 @@ class QAdamAlgorithmImpl(AlgorithmImpl):
                 parameter.bagua_backend_tensor().data_ptr() == parameter.grad.data_ptr()
             ), "bagua backend tensor data_ptr should match _q_adam_grad data_ptr"
             parameter.bagua_mark_communication_ready()
-        print("----QAdamAlgorithmImpl init_backward_hook({})!", self.optimizer_step_id)
+        print("----QAdamAlgorithmImpl init_backward_hook({})!".format(self.optimizer_step_id))
         return (
             hook_grad if self.optimizer_step_id < self.warmup_steps else hook_momentum
         )
