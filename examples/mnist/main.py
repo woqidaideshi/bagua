@@ -10,6 +10,7 @@ from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 import logging
 import bagua.torch_api as bagua
+from datetime import datetime
 
 class Net(nn.Module):
     def __init__(self):
@@ -39,8 +40,9 @@ class Net(nn.Module):
 
 def train(args, model, train_loader, optimizer, epoch, rank=0):
     model.train()
+    # print("rank: %d, epoch: %d, all datasize: %d, args.batch_size: %d." % (rank, epoch, len(train_loader), args.batch_size))
     for batch_idx, (data, target) in enumerate(train_loader):
-        # print("epoch: %d, batch: %d, datasize: %d" % (epoch, batch_idx, len(data)))
+        # print("rank: %d, epoch: %d, batch index: %d, datasize: %d, args.batch_size: %d" % (rank, epoch, batch_idx, len(data), args.batch_size))
 
         data, target = data.cuda(), target.cuda()
         optimizer.zero_grad()
@@ -95,6 +97,7 @@ def test(model, test_loader, rank=0):
 
 def main():
     # Training settings
+    start = datetime.now()
     parser = argparse.ArgumentParser(description="PyTorch MNIST Example")
     parser.add_argument(
         "--batch-size",
@@ -189,6 +192,7 @@ def main():
     if bagua.get_rank() == 0:
         logging.getLogger().setLevel(logging.INFO)
     # logging.getLogger().setLevel(logging.INFO)
+    logging.info("----main start time: {} (rank {}).".format(start.strftime("%Y-%m-%d %H:%M:%S.%f"), bagua.get_rank()))
 
     train_kwargs = {"batch_size": args.batch_size}
     test_kwargs = {"batch_size": args.test_batch_size}
@@ -293,6 +297,11 @@ def main():
 
     if args.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")
+
+    end = datetime.now()
+    logging.info("----test main end time: {} (rank {}).".format(end.strftime("%Y-%m-%d %H:%M:%S.%f"), bagua.get_rank()))
+    time_delta = (end - start).seconds
+    logging.info("----running time: {}s (rank {}).".format(time_delta, bagua.get_rank()))
 
 
 if __name__ == "__main__":

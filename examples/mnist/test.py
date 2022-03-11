@@ -1,6 +1,3 @@
-from importlib.resources import path
-from tkinter.messagebox import NO
-from numpy import argsort
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,6 +9,7 @@ import bagua.torch_api as bagua
 import sys
 import argparse
 import logging
+from datetime import datetime
 sys.path.append("../../tests/torch_api")
 from test_low_precision_decentralized import LowPrecDecentralizedAlgor, _init_torch_env
 from main import train, test, Net
@@ -56,7 +54,7 @@ def run_torch_model(
     train_kwargs.update(
         {
             "sampler": train_sampler,
-            "batch_size": train_kwargs["batch_size"],
+            "batch_size": train_kwargs["batch_size"] // nprocs,
             "shuffle": False,
         }
     )
@@ -73,6 +71,7 @@ def run_torch_model(
         test(model, test_loader, rank=rank)
 
 def main():
+    start = datetime.now()
     parser = argparse.ArgumentParser(description="PyTorch MNIST Example in Python")
     parser.add_argument(
         "--nprocs",
@@ -151,7 +150,7 @@ def main():
     logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.INFO)
     # logging.getLogger().setLevel(logging.INFO)
 
-    logging.info("----test main---------")
+    logging.info("----test main start time: {}.".format(start.strftime("%Y-%m-%d %H:%M:%S.%f")))
     print("nproc: ", nprocs)
 
     mp = multiprocessing.get_context("spawn")
@@ -171,6 +170,11 @@ def main():
 
     for p in processes:
         p.join(timeout=60)
+
+    end = datetime.now()
+    logging.info("----test main end time: {}.".format(end.strftime("%Y-%m-%d %H:%M:%S.%f")))
+    time_delta = (end - start).seconds
+    logging.info("----running time: {}s.".format(time_delta))
 
 if __name__ == "__main__":
     main()
