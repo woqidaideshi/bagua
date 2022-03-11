@@ -65,10 +65,12 @@ def run_torch_model(
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
     model = LowPrecDecentralizedAlgor(model, optimizer, hierarchical, communication_interval, compressor=args.compressor)
 
+    scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs+1):
         # print("rank %d, epoch_index: %d" % (rank, epoch))
         train(args, model, train_loader, optimizer, epoch, rank=rank)
         test(model, test_loader, rank=rank)
+        scheduler.step()
 
 def main():
     start = datetime.now()
@@ -115,7 +117,13 @@ def main():
         metavar="LR",
         help="learning rate (default: 1.0)",
     )
-
+    parser.add_argument(
+        "--gamma",
+        type=float,
+        default=0.7,
+        metavar="M",
+        help="Learning rate step gamma (default: 0.7)",
+    )
     parser.add_argument(
         "--log-interval",
         type=int,
