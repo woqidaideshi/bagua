@@ -152,6 +152,8 @@ class BaguaBucket:
         if group is None:
             group = _get_default_group()
 
+        print("----QAdamAlgorithmImpl append_python_op.")
+
         def wrapper_function_factory(pyop):
             def wrapped_pyop(name):
                 for tensor in self.tensors:
@@ -192,6 +194,8 @@ class BaguaBucket:
         """
         if group is None:
             group = _get_default_group()
+
+        print("----QAdamAlgorithmImpl append_centralized_synchronous_op.")
 
         if hierarchical:
             self.backend_bucket.append_centralized_synchronous_op(
@@ -295,6 +299,8 @@ class BaguaBucket:
         """
         if group is None:
             group = _get_default_group()
+
+        print("----QGAdamLowPrecisionDecentralizedAlgorithmImpl append_low_precision_decentralized_synchronous_op.")
 
         if hierarchical:
             self.backend_bucket.append_low_precision_decentralized_synchronous_op(

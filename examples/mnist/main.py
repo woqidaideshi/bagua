@@ -23,6 +23,7 @@ class Net(nn.Module):
         self.fc2 = nn.Linear(128, 10)
 
     def forward(self, x):
+        print("--------Net forward begin.")
         x = self.conv1(x)
         x = F.relu(x)
         x = self.conv2(x)
@@ -35,6 +36,7 @@ class Net(nn.Module):
         x = self.dropout2(x)
         x = self.fc2(x)
         output = F.log_softmax(x, dim=1)
+        print("--------Net forward end.")
         return output
 
 
@@ -96,6 +98,7 @@ def test(model, test_loader, rank=0):
 
 
 def main():
+    torch.cuda.empty_cache()
     # Training settings
     start = datetime.now()
     parser = argparse.ArgumentParser(description="PyTorch MNIST Example")
@@ -252,7 +255,7 @@ def main():
         from bagua.torch_api.algorithms import q_adam
 
         optimizer = q_adam.QAdamOptimizer(
-            model.parameters(), lr=args.lr, warmup_steps=100
+            model.parameters(), lr=args.lr, warmup_steps=100, rank=bagua.get_rank()
         )
         algorithm = q_adam.QAdamAlgorithm(optimizer)
     elif args.algorithm == "qgadam":
@@ -266,10 +269,21 @@ def main():
         from bagua.torch_api.algorithms import bytegrad
 
         algorithm = bytegrad.Float16GradAlgorithm()
-    # elif args.algorithm == "low_precision_decentralized_py":
-    #     from bagua.torch_api.algorithms import bytegrad
+    elif args.algorithm == "qgadam_low_precision_decentralized":
+        from bagua.torch_api.algorithms import decentralized
 
-    #     algorithm = bytegrad.Float16GradAlgorithm()
+        optimizer = decentralized.QGAdamOptimizer(
+            model.parameters(), lr=args.lr
+        )
+        algorithm = decentralized.QGAdamLowPrecisionDecentralizedAlgorithm(optimizer)
+    elif args.algorithm == "qadam_low_precision_decentralized":
+        from bagua.torch_api.algorithms import decentralized
+        from bagua.torch_api.algorithms import q_adam
+
+        optimizer = q_adam.QAdamOptimizer(
+            model.parameters(), lr=args.lr, warmup_steps= 14000
+        )
+        algorithm = decentralized.QGAdamLowPrecisionDecentralizedAlgorithm(optimizer)
     else:
         raise NotImplementedError
 
