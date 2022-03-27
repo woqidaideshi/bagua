@@ -37,3 +37,9 @@ GlobalAlgorithmRegistry.register(
 GlobalAlgorithmRegistry.register(
     "floatgrad", bytegrad.Float16GradAlgorithm, description="Float16 Algorithm"
 )
+GlobalAlgorithmRegistry.register(
+    "qgadam_low_precision_decentralized", decentralized.QGAdamLowPrecisionDecentralizedAlgorithm, description="QGAdam Low Precision Decentralized Algorithm"
+)
+GlobalAlgorithmRegistry.register(
+    "gradient_allreduce_sketch", gradient_allreduce.GradientAllReduceSketchAlgorithm, description="Gradient AllReduce Sketch Algorithm"
+)

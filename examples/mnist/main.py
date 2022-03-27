@@ -1,5 +1,6 @@
 from __future__ import print_function
 import argparse
+from typing import Tuple
 import numpy as np
 import random
 import torch
@@ -50,11 +51,17 @@ def train(args, model, train_loader, optimizer, epoch, rank=0):
         optimizer.zero_grad()
         output = model(data)
         loss = F.nll_loss(output, target)
+        # print("----pre backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
+        # print("----pre backward batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].newgrad))
         loss.backward()
+        # print("----post backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
+        # print("----post backward batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].newgrad))
         if args.fuse_optimizer:
             optimizer.fuse_step()
         else:
             optimizer.step()
+        # print("----post optimizer.step batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
+        # print("----post optimizer.step batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].newgrad))
         if batch_idx % args.log_interval == 0:
             logging.info(
                 "Train Rank: {} Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
@@ -284,6 +291,9 @@ def main():
             model.parameters(), lr=args.lr, warmup_steps= 14000
         )
         algorithm = decentralized.QGAdamLowPrecisionDecentralizedAlgorithm(optimizer)
+    elif args.algorithm == "gradient_allreduce_sketch":
+        from bagua.torch_api.algorithms import gradient_allreduce
+        algorithm = gradient_allreduce.GradientAllReduceSketchAlgorithm(optimizer)
     else:
         raise NotImplementedError
 
