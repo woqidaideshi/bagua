@@ -267,7 +267,7 @@ def main_worker(args):
                 (get_current_time(), avg_exec_t / (iter_num - 1),
 				avg_grad_t / (iter_num - 1), avg_loss_t / (iter_num - 1)))
         writer.write('\n')
-		
+
         avg_exec_t -= second_exec_t
         avg_grad_t -= second_grad_t
         avg_loss_t -= second_loss_t
@@ -283,7 +283,6 @@ def main_worker(args):
 def get_current_time() :
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
-
 def get_current_time_filename():
     return time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
 
@@ -291,17 +290,17 @@ def main():
 
     log_base_dir = '../log/'
     data_dir = '../data/'
-    
+
     # log_base_dir = '/datadisk/lijie/code/SGD-shuffle-bench'
     # data_dir = '/datadisk/data/large_data'
     
     log_dir = 'train_log_cifar_bench_50_adam'
-    
+
     model_name = 'ResNet18'
     #model_name = 'VGG19'
-    
+
     data_name = 'cifar10'
-    
+
     use_clustered_data = True
 
     batch_size = 256
@@ -312,24 +311,21 @@ def main():
     shuffle_modes = ['once_shuffle']
     #shuffle_modes = ['once_shuffle', 'block', 'block', 'sliding_window', 'bismarck_mrs', 'no_shuffle', 'block_only']
     #shuffle_modes = ['once_shuffle', 'block']
-    
-    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
+    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
     n_records = 0
     block_num = 500
-    
+
     if (model_name == 'ResNet18'):
         learning_rate = 0.001
-            
+
     elif (model_name == 'VGG19'):
         learning_rate = 0.001
-    
-
 
     args = {}
     args['use_clustered_data'] = use_clustered_data
-    
+
     args['model_name'] = model_name
     args['batch_size'] = batch_size
     args['iter_num'] = iter_num
@@ -339,8 +335,6 @@ def main():
     args['data_name'] = data_name
     args['lr_decay'] = lr_decay
 
-
-   
     args['resume'] = False
     args['data_dir'] = data_dir
     args['download'] = False
@@ -363,7 +357,6 @@ def main():
     args['select_ratio_from_old_buffer'] = 0.5
     args['old_buffer_checkpoint_dir'] = log_base_dir + '/checkpoint/' + get_current_time_filename() + '7'
 
-    
     for shuffle_mode in shuffle_modes:
         args['shuffle_mode'] = shuffle_mode
 
@@ -382,7 +375,7 @@ def main():
         else:
             log_txt = shuffle_mode + '_' + data_name + '_lr' + str(learning_rate) + '_' + get_current_time_filename() + '.txt'
             outdir = os.path.join(log_base_dir, log_dir, data_name, model_name, 'sgd-bs' + str(batch_size), shuffle_mode)
-    
+
             log_file = os.path.join(outdir, log_txt)
             args['log_file'] = log_file
             if not os.path.exists(outdir):

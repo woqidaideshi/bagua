@@ -71,7 +71,6 @@ def train(args, model, train_loader, optimizer, epoch, criterion=None, rank=0):
         )
     )
 
-
 def test(model, test_loader, criterion=None, rank=0):
     model.eval()
     test_loss = 0
@@ -112,7 +111,6 @@ def test(model, test_loader, criterion=None, rank=0):
             time_delta,
         )
     )
-
 
 def main():
     # Training settings
