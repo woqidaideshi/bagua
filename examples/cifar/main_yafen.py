@@ -51,8 +51,6 @@ def train(epoch, net, trainloader, optimizer, criterion):
         # progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
         #              % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
-       
-
 def test(epoch, net, testloader, criterion):
     #global best_acc
     net.eval()
@@ -73,8 +71,6 @@ def test(epoch, net, testloader, criterion):
             # progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
             #              % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
-     
-
     # Save checkpoint.
     acc = 100.*correct/total
 
@@ -86,12 +82,11 @@ def main_worker(args):
 
     for k in vars(args):
         writer.write("[params] " + str(k) + " = " + str(getattr(args, k)) + '\n')
-    
+
     writer.flush()
 
     writer.write('[%s] Start iteration' % get_current_time())
     writer.write('\n')
-
 
     best_acc = 0  # best test accuracy
     start_epoch = 1  # start from epoch 0 or last checkpoint epoch
@@ -302,12 +297,12 @@ def main():
     log_base_dir = '../log/'
     data_dir = '../data/'
     log_dir = 'train_log_cifar_bench_50_adam'
-    
+
     model_name = 'ResNet18'
     #model_name = 'VGG19'
-    
+
     data_name = 'cifar10'
-    
+
     parser = argparse.ArgumentParser(description="PyTorch Cifar Example")
     parser.add_argument(
         "--batch-size",

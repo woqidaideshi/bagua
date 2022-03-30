@@ -42,8 +42,6 @@ def train(epoch, net, trainloader, device, optimizer, criterion):
         # progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
         #              % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
-       
-
 def test(epoch, net, testloader, device, criterion):
     #global best_acc
     net.eval()
@@ -64,14 +62,10 @@ def test(epoch, net, testloader, device, criterion):
             # progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
             #              % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
-     
-
     # Save checkpoint.
     acc = 100.*correct/total
 
     return (acc, test_loss)
-
-
 
 def main_worker(args):
     log_file = args['log_file']
@@ -79,7 +73,7 @@ def main_worker(args):
 
     for k in args:
         writer.write("[params] " + str(k) + " = " + str(args[k]) + '\n')
-    
+
     writer.flush()
 
     writer.write('[%s] Start iteration' % get_current_time())
@@ -99,7 +93,6 @@ def main_worker(args):
     shuffle_mode = args['shuffle_mode']
     model_name = args['model_name']
     batch_size = args['batch_size']
-
 
     # Data
     print('==> Preparing data..')
@@ -123,18 +116,19 @@ def main_worker(args):
     use_clustered_data = args['use_clustered_data']
 
     trainset = torchvision.datasets.CIFAR10(
-        root=data_dir, train=True, download=download, transform=transform_train)
-     
+        root=data_dir, train=True, download=download, transform=transform_train
+    )
 
     trainloader = torch.utils.data.DataLoader(
-            trainset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-   
+            trainset, batch_size=batch_size, shuffle=False, num_workers=num_workers
+    )
+
     # testset = torchvision.datasets.CIFAR10(
     #     root=data_dir, train=False, download=download, transform=transform_test)
 
     # testloader = torch.utils.data.DataLoader(
     #     testset, batch_size=100, shuffle=False, num_workers=num_workers)
-    
+
     testset = torchvision.datasets.CIFAR10(
         root=data_dir, train=True, download=download, transform=transform_train)
     # testset = torchvision.datasets.CIFAR10(
@@ -222,7 +216,6 @@ def main_worker(args):
         grad_t = grad_end - start
         loss_t = exec_t - grad_t
 
-      
         if saving == True and acc > best_acc:
             print('Saving..')
             state = {
@@ -259,8 +252,6 @@ def main_worker(args):
 
         if acc > max_accuracy:
             max_accuracy = acc
-
-
 
     writer.write('[%s] [Finish] avg_exec_t = %.2fs, avg_grad_t = %.2fs, avg_loss_t = %.2fs' % 
             (get_current_time(), avg_exec_t / iter_num,
