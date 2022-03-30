@@ -211,7 +211,7 @@ def main_worker(args):
         grad_end = time.time()
         (acc, test_loss) = test(epoch, net, testloader, device, criterion)
         loss_end = time.time()
-        
+
         exec_t = loss_end - start
         grad_t = grad_end - start
         loss_t = exec_t - grad_t
