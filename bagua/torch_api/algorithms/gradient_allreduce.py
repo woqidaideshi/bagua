@@ -88,6 +88,7 @@ class GradientAllReduceSketchAlgorithmImpl(AlgorithmImpl):
         tensors = []
         for name, param in parameters.__reversed__():
             param.newgrad = torch.zeros(self.size, device=param.device)
+            param.stepid = 0
             registered_tensor = param.bagua_ensure_grad().ensure_bagua_tensor(
                 name,
                 bagua_ddp.bagua_module_name,
@@ -109,18 +110,40 @@ class GradientAllReduceSketchAlgorithmImpl(AlgorithmImpl):
 
         return hook
 
+    def init_post_backward_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        """Given a :class:`~bagua.torch_api.data_parallel.BaguaDistributedDataParallel`, return a hook function that will be executed when the
+        backward pass is done.
+
+        Args:
+            bagua_ddp: :class:`bagua.torch_api.data_parallel.BaguaDistributedDataParallel`.
+
+        Returns:
+            A function that takes no argument.
+        """
+
+        def hook():
+            bagua_ddp._bagua_backend.wait_pending_comm_ops()
+            self.optimizer.param_groups[0]["params"][0].stepid += 1
+
+        return hook
+
     def init_operations(
         self,
         _: BaguaDistributedDataParallel,
         bucket: BaguaBucket,
     ):
         bucket.clear_ops()
+        def log(*args):
+            print("----log batch_idx {} in {}: grad---{}.".format(self.optimizer.param_groups[0]["params"][0].stepid, self.optimizer.param_groups[0]["params"][0].device, self.optimizer.param_groups[0]["params"][0].grad[0:10]))
+            print("----log batch_idx {} in {}: newgrad---{}.".format(self.optimizer.param_groups[0]["params"][0].stepid, self.optimizer.param_groups[0]["params"][0].device, self.optimizer.param_groups[0]["params"][0].newgrad))
         def sketch(*args):
             for tensor in bucket.tensors:
-                t = torch.randn(self.size, device=tensor.grad.device)
+                t = torch.randn((3, 4), device=tensor.grad.device)
                 tensor.bagua_setter_closure(t)
 
+        bucket.append_python_op(log, group=self.process_group)
         bucket.append_python_op(sketch, group=self.process_group)
+        bucket.append_python_op(log, group=self.process_group)
         bucket.append_centralized_synchronous_op(
             hierarchical=self.hierarchical,
             average=self.average,
