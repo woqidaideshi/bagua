@@ -293,7 +293,7 @@ def main():
 
     # log_base_dir = '/datadisk/lijie/code/SGD-shuffle-bench'
     # data_dir = '/datadisk/data/large_data'
-    
+
     log_dir = 'train_log_cifar_bench_50_adam'
 
     model_name = 'ResNet18'
@@ -340,7 +340,7 @@ def main():
     args['download'] = False
     args['saving'] = False
     # for our-block-based sgd
-    buffer_size_ratio = 0.1  
+    buffer_size_ratio = 0.1
 
     # for sliding_window
     sliding_window_size_ratio = 0.1
@@ -363,7 +363,7 @@ def main():
         if (shuffle_mode == 'bismarck_mrs'):
             for ratio in select_ratio_from_old_buffers:
                 args['select_ratio_from_old_buffer'] = ratio
-                log_txt = shuffle_mode + '_' + data_name + '_lr' + str(learning_rate) + '_ratio_' + str(ratio) + '_' + get_current_time_filename() + '.txt' 
+                log_txt = shuffle_mode + '_' + data_name + '_lr' + str(learning_rate) + '_ratio_' + str(ratio) + '_' + get_current_time_filename() + '.txt'
                 outdir = os.path.join(log_base_dir, log_dir, data_name, model_name, 'sgd-bs' + str(batch_size), shuffle_mode)
                 log_file = os.path.join(outdir, log_txt)
                 args['log_file'] = log_file

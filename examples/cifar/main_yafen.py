@@ -148,7 +148,7 @@ def main_worker(args):
 
     trainloader = torch.utils.data.DataLoader(
         trainset, batch_size=batch_size, shuffle=False, sampler=train_sampler, num_workers=num_workers, pin_memory=True
-    )    
+    )
     testloader = torch.utils.data.DataLoader(
         testset, batch_size=test_batch_size, shuffle=True, num_workers=num_workers, pin_memory=True
     )
@@ -220,7 +220,6 @@ def main_worker(args):
         grad_t = grad_end - start
         loss_t = exec_t - grad_t
 
-      
         if saving == True and acc > best_acc:
             print('Saving..')
             state = {
@@ -272,7 +271,7 @@ def main_worker(args):
                 (get_current_time(), avg_exec_t / (epochs - 1),
 				avg_grad_t / (epochs - 1), avg_loss_t / (epochs - 1)))
         writer.write('\n')
-		
+
         avg_exec_t -= second_exec_t
         avg_grad_t -= second_grad_t
         avg_loss_t -= second_loss_t
