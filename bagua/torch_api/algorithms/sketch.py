@@ -31,6 +31,7 @@ class SketchAlgorithmImpl(AlgorithmImpl):
         tensors = []
         for name, param in parameters.__reversed__():
             param.newgrad = torch.zeros(self.size, device=param.device)
+            param.stepid = 0
             registered_tensor = param.bagua_ensure_grad().ensure_bagua_tensor(
                 name,
                 bagua_ddp.bagua_module_name,
@@ -41,6 +42,7 @@ class SketchAlgorithmImpl(AlgorithmImpl):
             break
         
         self._communication_tensor_names = set((parameters[-1][0],))
+        print("----SketchAlgorithmImpl init_tensors batch_idx {} in rank: {}, _communication_tensor_names: {}".format(self.optimizer.param_groups[0]["params"][-1].stepid, self.optimizer.param_groups[0]["params"][-1].device, self._communication_tensor_names))
         assert len(self._communication_tensor_names) == len(
             tensors
         ), "tensor names should be unique"
@@ -53,19 +55,58 @@ class SketchAlgorithmImpl(AlgorithmImpl):
 
         return hook
 
+    def init_post_backward_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        """Given a :class:`~bagua.torch_api.data_parallel.BaguaDistributedDataParallel`, return a hook function that will be executed when the
+        backward pass is done.
+
+        Args:
+            bagua_ddp: :class:`bagua.torch_api.data_parallel.BaguaDistributedDataParallel`.
+
+        Returns:
+            A function that takes no argument.
+        """
+
+        def hook():
+            bagua_ddp._bagua_backend.wait_pending_comm_ops()
+            self.optimizer.param_groups[0]["params"][-1].stepid += 1
+
+        return hook
+
+    def tensors_to_buckets(
+        self, tensors: List[List[BaguaTensor]], do_flatten: bool
+    ) -> List[BaguaBucket]:
+        print("----SketchAlgorithmImpl tensors_to_buckets batch_idx {} in rank: {}".format(self.optimizer.param_groups[0]["params"][-1].stepid, self.optimizer.param_groups[0]["params"][-1].device))
+        bagua_buckets = []
+        for idx, bucket in enumerate(tensors):
+            bagua_bucket = BaguaBucket(
+                bucket,
+                flatten=do_flatten,
+                name=str(idx),
+                alignment=self.process_group.get_global_communicator().nranks(),
+            )
+            bagua_buckets.append(bagua_bucket)
+        return bagua_buckets
+
     def init_operations(
         self,
         _: BaguaDistributedDataParallel,
         bucket: BaguaBucket,
     ):
         bucket.clear_ops()
+        def log(*args):
+            print("----log batch_idx {} in {}: grad---{}.".format(self.optimizer.param_groups[0]["params"][-1].stepid, self.optimizer.param_groups[0]["params"][-1].device, self.optimizer.param_groups[0]["params"][-1].grad[0:10]))
+            for tensor in self.optimizer.param_groups[0]["params"]:
+                if tensor.is_bagua_tensor():
+                    print("----log batch_idx {} in {}: newgrad---{}.".format(self.optimizer.param_groups[0]["params"][-1].stepid, self.optimizer.param_groups[0]["params"][-1].device, tensor.newgrad))
         def sketch(*args):
             for tensor in bucket.tensors:
                 if tensor.is_bagua_tensor():
                     t = torch.randn((12), device=tensor.grad.device)
                     tensor.bagua_setter_closure(t)
 
+        bucket.append_python_op(log, group=self.process_group)
         bucket.append_python_op(sketch, group=self.process_group)
+        bucket.append_python_op(log, group=self.process_group)
         bucket.append_centralized_synchronous_op(
             hierarchical=self.hierarchical,
             average=self.average,
