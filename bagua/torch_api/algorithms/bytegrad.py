@@ -100,21 +100,29 @@ class Float16GradAlgorithmImpl(AlgorithmImpl):
         bucket: BaguaBucket,
     ):
         bucket.clear_ops()
-        def to_float16(*args):
-            for tensor in bucket.tensors:
-                print(tensor.bagua_getter_closure().dtype)
-                tensor.bagua_getter_closure().half()
-                print(tensor.bagua_getter_closure().dtype)
-                tensor.bagua_setter_closure(tensor.bagua_getter_closure().half())
-                print(tensor.bagua_getter_closure().dtype)
+        # def to_float16(*args):
+        #     for tensor in bucket.tensors:
+        #         print(tensor.bagua_getter_closure().dtype)
+        #         tensor.bagua_getter_closure().half()
+        #         print(tensor.bagua_getter_closure().dtype)
+        #         tensor.bagua_setter_closure(tensor.bagua_getter_closure().half())
+        #         print(tensor.bagua_getter_closure().dtype)
+        # bucket.append_python_op(to_float16, group=self.process_group)
+        # bucket.append_centralized_synchronous_op(
+        #     hierarchical=self.hierarchical,
+        #     average=self.average,
+        #     scattergather=True,
+        #     group=self.process_group,
+        # )
 
-        bucket.append_python_op(to_float16, group=self.process_group)
-        bucket.append_centralized_synchronous_op(
+        bucket.append_centralized_test_synchronous_op(
             hierarchical=self.hierarchical,
             average=self.average,
             scattergather=True,
+            compression="MinMaxFloat16",
             group=self.process_group,
         )
+
 
 class ByteGradAlgorithm(Algorithm):
     def __init__(self, hierarchical: bool = True, average: bool = True):

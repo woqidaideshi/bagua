@@ -216,6 +216,56 @@ class BaguaBucket:
                 compression=compression,
             )
 
+    def append_centralized_test_synchronous_op(
+        self,
+        hierarchical: bool = False,
+        average: bool = True,
+        scattergather: bool = False,
+        compression: Optional[str] = None,
+        group: Optional[BaguaProcessGroup] = None,
+    ):
+        """
+        Append a centralized synchronous operation to a bucket. It will sum or average the tensors in the bucket
+        for all workers.
+
+        The operations will be executed by the Bagua backend in the order they are appended
+        when all the tensors within the bucket are marked ready.
+
+        Args:
+            hierarchical (bool): Enable hierarchical communication. Which means the GPUs on the same machine
+                will communicate will each other first. After that, machines do inter-node communication. This can
+                boost performance when the inter-node communication cost is high.
+            average (bool): If ``True``, the gradients on each worker are averaged. Otherwise, they are summed.
+            scattergather (bool): If ``True``, the communication between workers are done with scatter gather instead
+                of allreduce. This is required for using compression.
+            compression: If not ``None``, the tensors will be compressed for communication. Currently ``"MinMaxUInt8"`` is
+                supported.
+            group: The process group to work on. If ``None``, the default process group will be used.
+        """
+        if group is None:
+            group = _get_default_group()
+
+        print("----Float16GradAlgorithmImpl append_centralized_test_synchronous_op.")
+
+        if hierarchical:
+            self.backend_bucket.append_centralized_test_synchronous_op(
+                _bagua_backend_comm(group.get_inter_node_communicator()),
+                _bagua_backend_comm(group.get_intra_node_communicator()),
+                hierarchical=hierarchical,
+                average=average,
+                scattergather=scattergather,
+                compression=compression,
+            )
+        else:
+            self.backend_bucket.append_centralized_test_synchronous_op(
+                _bagua_backend_comm(group.get_global_communicator()),
+                None,
+                hierarchical=hierarchical,
+                average=average,
+                scattergather=scattergather,
+                compression=compression,
+            )
+
     def append_decentralized_synchronous_op(
         self,
         peer_weight: BaguaTensor,

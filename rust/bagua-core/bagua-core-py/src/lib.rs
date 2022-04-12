@@ -455,6 +455,27 @@ impl BaguaBucketPy {
         Ok(())
     }
 
+    #[args(average = "true", hierarchical = "false", scattergather = "false")]
+    pub fn append_centralized_test_synchronous_op(
+        &mut self,
+        communicator_internode: Option<&BaguaSingleCommunicatorPy>,
+        communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
+        hierarchical: bool,
+        average: bool,
+        scattergather: bool,
+        compression: Option<String>,
+    ) -> PyResult<()> {
+        self.inner.append_centralized_test_synchronous_op(
+            communicator_internode.map(|x| &x.inner),
+            communicator_intranode.map(|x| &x.inner),
+            hierarchical,
+            average,
+            scattergather,
+            compression,
+        );
+        Ok(())
+    }
+
     #[args(hierarchical = "false")]
     pub fn append_decentralized_synchronous_op(
         &mut self,

@@ -15,3 +15,5 @@ python -m bagua.distributed.launch --nproc_per_node=1 main.py --algorithm gradie
 
 
 python -m bagua.distributed.launch --nproc_per_node=2 main.py --algorithm sketch > /dev/null
+
+python -m bagua.distributed.launch --nproc_per_node=1 main.py --algorithm floatgrad > /dev/null
