@@ -114,6 +114,24 @@ extern "C" {
         output: *mut c_void,
         stream: *const c_void,
     );
+    pub fn compress_f32_to_f16_host(
+        input: *mut c_void,
+        input_num_element: i32,
+        chunk_size: i32,
+        num_chunks: i32,
+        output: *mut c_void,
+        output_size_bytes: usize,
+        target_chunk: i32,
+        stream: *const c_void,
+    );
+    pub fn decompress_f16_to_f32_host(
+        input: *mut c_void,
+        input_size_bytes: usize,
+        chunk_size: i32,
+        num_chunks: i32,
+        output: *mut c_void,
+        stream: *const c_void,
+    );
     pub fn array_min_max_size_f32_host(
         input: *mut c_void,
         input_num_element: i32,

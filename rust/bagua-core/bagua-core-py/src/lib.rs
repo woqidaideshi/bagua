@@ -503,7 +503,7 @@ impl BaguaBucketPy {
         communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
         hierarchical: bool,
         peer_selection_mode: String,
-        compression: String,
+        compression: Option<String>,
         weight: PyRef<BaguaTensorPy>,
         left_peer_weight: PyRef<BaguaTensorPy>,
         right_peer_weight: PyRef<BaguaTensorPy>,

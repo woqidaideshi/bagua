@@ -459,6 +459,7 @@ compress_float_to_uint8(T *input, int chunk_size, int chunk_offset, int num_chun
                       size_t output_size) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int idy = blockIdx.y * blockDim.y + threadIdx.y;
+    // printf("compress_float_to_uint8---: chunk_size: %d, num_chunks: %d, chunk_offset: %d, output_size: %d, idx: %d, idy: %d\n", chunk_size, num_chunks, chunk_offset, output_size, idx, idy);
 
     float min_ = __load_as_float(reinterpret_cast<T *>(output + idy * chunk_offset));
     float max_ = __load_as_float(reinterpret_cast<T *>(output + idy * chunk_offset + sizeof(T)));
@@ -469,6 +470,9 @@ compress_float_to_uint8(T *input, int chunk_size, int chunk_offset, int num_chun
     for (int i = idx; i < chunk_size; i += blockDim.x * gridDim.x) {
         int k = idy * chunk_size + i;
         int o = idy * chunk_offset + 32 + i;
+        // int out = __minmax_uint8_compress(input[k], scale, lower_bound, upper_bound);
+        // printf("compress o: %d, k: %d, input: %f, out: %d", o, k, input[k], out);
+        // output[o] = out;
         output[o] = __minmax_uint8_compress(input[k], scale, lower_bound, upper_bound);
     }
 
@@ -485,6 +489,7 @@ decompress_uint8_to_float(uint8_t *input, size_t input_size, int chunk_size, int
                           T *output) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int idy = blockIdx.y * blockDim.y + threadIdx.y;
+    // printf("decompress_uint8_to_float---: input_size: %d, chunk_size: %d, chunk_offset: %d, num_chunks: %d, idx: %d, idy: %d\n", input_size, chunk_size, chunk_offset, num_chunks, idx, idy);
 
     const float min_ = __load_as_float(reinterpret_cast<T *>(input + idy * chunk_offset));
     const float max_ = __load_as_float(reinterpret_cast<T *>(input + idy * chunk_offset + sizeof(T)));
@@ -497,6 +502,40 @@ decompress_uint8_to_float(uint8_t *input, size_t input_size, int chunk_size, int
         int k = idy * chunk_size + i;
         int o = idy * chunk_offset + 32 + i;
         output[k] = __minmax_uint8_decompress(input[o], scale, lower_bound, upper_bound, output[k]);
+    }
+}
+
+// template<typename T>
+__global__ void
+compress_float_to_half(float *input, int chunk_size, int chunk_offset, int num_chunks, half *output,
+                      size_t output_size){
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idy = blockIdx.y * blockDim.y + threadIdx.y;
+    // printf("compress_float_to_half---: chunk_size: %d, num_chunks: %d, chunk_offset: %d, output_size: %d, idx: %d, idy: %d\n", chunk_size, num_chunks, chunk_offset, output_size, idx, idy);
+
+    for (int i = idx; i < chunk_size; i += blockDim.x * gridDim.x) {
+        int k = idy * chunk_size + i;
+        int o = idy * chunk_offset + i;
+        // printf("compress o: %d, k: %d, input: %f, test: %f, test2: %f\n", o, k, input[k], __float2half(float(-0.001674)), __half2float(__float2half(float(-0.001674))));
+        // half out = __float2half(input[k]);
+        // printf("compress o: %d, k: %d, input: %f, out: %f, test: %f\n", o, k, input[k], out, __half2float(out));
+        // output[o] = out;
+        output[o] = __float2half(input[k]);
+        // printf("compress o: %d, k: %d, input: %f, out: %f, test: %f\n", o, k, input[k], output[o], __half2float(output[o]));
+    }
+}
+
+// template<typename T>
+__global__ void
+decompress_half_to_float(half *input, size_t input_size, int chunk_size, int chunk_offset, int num_chunks,
+                          float *output) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idy = blockIdx.y * blockDim.y + threadIdx.y;
+    // printf("decompress_half_to_float---: input_size: %d, chunk_size: %d, chunk_offset: %d, num_chunks: %d, idx: %d, idy: %d\n", input_size, chunk_size, chunk_offset, num_chunks, idx, idy);
+    for (int i = idx; i < chunk_size; i += blockDim.x * gridDim.x) {
+        int k = idy * chunk_size + i;
+        int o = idy * chunk_offset + i;
+        output[k] = __half2float(input[o]);
     }
 }
 
@@ -537,6 +576,7 @@ void compress_float_to_uint8_host(T *input, int input_num_element, int chunk_siz
                                 cudaStream_t stream) {
     int chunk_offset = output_size / num_chunks;
     int remaining_elem = input_num_element;
+    // printf("compress_float_to_uint8_host---input_num_element: %d, chunk_size: %d, num_chunks: %d, output_size:%d, target_chunk: %d, chunk_offset: %d\n", input_num_element, chunk_size, num_chunks, output_size, target_chunk, chunk_offset);
     for (int i = 0; i < num_chunks; i++) {
         if ((target_chunk == -1) || (i == target_chunk)) {
             array_min_max(input + i * chunk_size, std::min(remaining_elem, chunk_size), dev_buffer, dev_size,
@@ -567,6 +607,42 @@ void decompress_uint8_to_float_host(uint8_t *input, size_t input_size, int chunk
     int chunk_offset = input_size / num_chunks;
     dim3 num_blocks(DIVUP(chunk_size, 1024), num_chunks);
     decompress_uint8_to_float<<<num_blocks, 1024, 0, stream>>>(input, input_size,
+                                                             chunk_size, chunk_offset, num_chunks, output);
+    CUDACHECK(cudaGetLastError());
+}
+
+// template<typename T>
+void compress_float_to_half_host(float *input, int input_num_element, int chunk_size, int num_chunks, half *output,
+                                size_t output_size, int target_chunk, cudaStream_t stream) {
+    int chunk_offset = output_size / num_chunks;
+    printf("compress_float_to_half_host---input_num_element: %d, chunk_size: %d, num_chunks: %d, output_size:%d, target_chunk: %d, chunk_offset: %d\n", input_num_element, chunk_size, num_chunks, output_size, target_chunk, chunk_offset);
+    if (target_chunk == -1) {
+        printf("target chunch is -1\n");
+        dim3 num_blocks(DIVUP(chunk_size, 1024), num_chunks);
+        printf("compress_float_to_half_host-in if--input_num_element: %d, chunk_size: %d, num_chunks: %d, output_size:%d, target_chunk: %d\n", input_num_element, chunk_size, num_chunks, output_size, target_chunk);
+        compress_float_to_half<<<num_blocks, 1024, 0, stream>>>(input, chunk_size, chunk_offset, num_chunks, output,
+                                                               output_size);
+    } else {
+        printf("target chunch is -1\n");
+        dim3 num_blocks(DIVUP(chunk_size, 1024), 1);
+        float *chunk_input = input + target_chunk * chunk_size;
+        half *chunk_output = output + target_chunk * chunk_offset;
+
+        compress_float_to_half<<<num_blocks, 1024, 0, stream>>>(chunk_input, chunk_size, chunk_offset, 1, chunk_output,
+                                                               chunk_offset);
+    }
+
+    CUDACHECK(cudaGetLastError());
+}
+
+// template<typename T>
+void decompress_half_to_float_host(half *input, size_t input_size, int chunk_size, int num_chunks, float *output,
+                                   cudaStream_t stream) {
+
+    int chunk_offset = input_size / num_chunks;
+    printf("decompress_half_to_float_host---input_size: %d, chunk_size: %d, num_chunks: %d, chunk_offset:%d\n", input_size, chunk_size, num_chunks, chunk_offset);
+    dim3 num_blocks(DIVUP(chunk_size, 1024), num_chunks);
+    decompress_half_to_float<<<num_blocks, 1024, 0, stream>>>(input, input_size,
                                                              chunk_size, chunk_offset, num_chunks, output);
     CUDACHECK(cudaGetLastError());
 }
@@ -679,6 +755,16 @@ void compress_f16_to_uint8_host(half *input, int input_num_element, int chunk_si
 void decompress_uint8_to_f16_host(uint8_t *input, size_t input_size, int chunk_size, int num_chunks, half *output, 
 		                  cudaStream_t stream) {
     decompress_uint8_to_float_host(input, input_size, chunk_size, num_chunks, output, stream);
+}
+
+void compress_f32_to_f16_host(float *input, int input_num_element, int chunk_size, int num_chunks, half *output,
+                                size_t output_size, int target_chunk, cudaStream_t stream) {
+    compress_float_to_half_host(input, input_num_element, chunk_size, num_chunks, output, output_size, target_chunk, stream);
+}
+
+void decompress_f16_to_f32_host(half *input, size_t input_size, int chunk_size, int num_chunks, float *output,
+		                  cudaStream_t stream) {
+    decompress_half_to_float_host(input, input_size, chunk_size, num_chunks, output, stream);
 }
 
 size_t array_min_max_size_f32_host(float *input, int input_num_element, float *output, cudaStream_t stream) {

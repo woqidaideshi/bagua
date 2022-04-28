@@ -326,12 +326,14 @@ pub trait RawBaguaTensor: Debug {
                     "compression tensor size % n_chunks must be 0"
                 );
                 let chunk_size = self.num_elements_allocated() / n_chunks;
+                println!("num_elements: {}, num_elements_allocated: {}, n_chunks: {}, chunk_size: {}", self.num_elements(), self.num_elements_allocated(), n_chunks, chunk_size);
                 let output_buffer_size =
                     MinMaxUInt8CompressionParameters::get_compressed_buffer_size(
                         n_chunks,
                         chunk_size,
                         &self.dtype(),
                     );
+                println!("output_buffer_size: {}", output_buffer_size);
                 let output_buffer =
                     CUDA_DEVICE_MEMORY_POOL[self.device_id()].try_pull(output_buffer_size)?;
 
@@ -342,6 +344,7 @@ pub trait RawBaguaTensor: Debug {
                     stream_ptr,
                     &self.dtype(),
                 );
+                println!("temp_buffer_size: {}", temp_buffer_size);
                 let temp_buffer =
                     CUDA_DEVICE_MEMORY_POOL[self.device_id()].try_pull(temp_buffer_size)?;
 
@@ -393,61 +396,42 @@ pub trait RawBaguaTensor: Debug {
                     pool_allocations: vec![Arc::new(output_buffer)],
                 }));
             },
-            TensorCompressionMethod::MinMaxFloat16(_parameters) => {
+            TensorCompressionMethod::Float2Half(_parameters) => {
                 assert_eq!(
                     self.num_elements_allocated() % n_chunks,
                     0,
                     "compression tensor size % n_chunks must be 0"
                 );
                 let chunk_size = self.num_elements_allocated() / n_chunks;
+                println!("num_elements: {}, num_elements_allocated: {}, n_chunks: {}, chunk_size: {}", self.num_elements(), self.num_elements_allocated(), n_chunks, chunk_size);
+                // let output_buffer_size = chunk_size * BaguaTensorDtype::F16.bytes();
                 let output_buffer_size =
-                    MinMaxUInt8CompressionParameters::get_compressed_buffer_size(
+                    Float2HalfCompressionParameters::get_compressed_buffer_size(
                         n_chunks,
                         chunk_size,
                         &self.dtype(),
                     );
+                println!("output_buffer_size: {}", output_buffer_size);
                 let output_buffer =
                     CUDA_DEVICE_MEMORY_POOL[self.device_id()].try_pull(output_buffer_size)?;
-
-                let temp_buffer_size = MinMaxUInt8CompressionParameters::get_temp_buffer_size(
-                    self.data_ptr(),
-                    self.num_elements(),
-                    output_buffer.ptr,
-                    stream_ptr,
-                    &self.dtype(),
-                );
-                let temp_buffer =
-                    CUDA_DEVICE_MEMORY_POOL[self.device_id()].try_pull(temp_buffer_size)?;
+                println!("output_buffer ptr: {}", output_buffer.ptr as u64);
 
                 match self.dtype() {
                     BaguaTensorDtype::F32 => unsafe {
-                        kernels::compress_f32_to_uint8_host(
+                        kernels::compress_f32_to_f16_host(
                             self.data_ptr() as _,
                             self.num_elements() as _,
                             chunk_size as _,
                             n_chunks as _,
                             output_buffer.ptr as _,
                             output_buffer_size,
-                            temp_buffer.ptr as _,
-                            temp_buffer_size,
                             target_chunk,
                             stream_ptr as _,
                         );
                     },
-                    BaguaTensorDtype::F16 => unsafe {
-                        kernels::compress_f16_to_uint8_host(
-                            self.data_ptr() as _,
-                            self.num_elements() as _,
-                            chunk_size as _,
-                            n_chunks as _,
-                            output_buffer.ptr as _,
-                            output_buffer_size,
-                            temp_buffer.ptr as _,
-                            temp_buffer_size,
-                            target_chunk,
-                            stream_ptr as _,
-                        );
-                    },
+                    BaguaTensorDtype::F16 => {
+                        unimplemented!()
+                    }
                     BaguaTensorDtype::U8 => {
                         unimplemented!()
                     }
@@ -460,9 +444,9 @@ pub trait RawBaguaTensor: Debug {
                 }
                 return Ok(Box::new(BaguaTensorRaw {
                     ptr: output_buffer.ptr,
-                    num_elem_allocated: output_buffer_size,
-                    dtype: BaguaTensorDtype::U8,
-                    num_elem: output_buffer_size,
+                    num_elem_allocated: output_buffer_size / BaguaTensorDtype::F16.bytes(),
+                    dtype: BaguaTensorDtype::F16,
+                    num_elem: output_buffer_size / BaguaTensorDtype::F16.bytes(),
                     device_id: self.device_id(),
                     pool_allocations: vec![Arc::new(output_buffer)],
                 }));
@@ -517,9 +501,9 @@ pub trait RawBaguaTensor: Debug {
                     unimplemented!()
                 }
             },
-            TensorCompressionMethod::MinMaxFloat16(_parameters) => match self.dtype() {
+            TensorCompressionMethod::Float2Half(_parameters) => match self.dtype() {
                 BaguaTensorDtype::F32 => unsafe {
-                    kernels::decompress_uint8_to_f32_host(
+                    kernels::decompress_f16_to_f32_host(
                         compressed_buffer.data_ptr() as _,
                         compressed_buffer.num_elements_allocated()
                             * compressed_buffer.dtype().bytes(),
@@ -529,17 +513,9 @@ pub trait RawBaguaTensor: Debug {
                         stream_ptr as _,
                     );
                 },
-                BaguaTensorDtype::F16 => unsafe {
-                    kernels::decompress_uint8_to_f16_host(
-                        compressed_buffer.data_ptr() as _,
-                        compressed_buffer.num_elements_allocated()
-                            * compressed_buffer.dtype().bytes(),
-                        chunk_size as _,
-                        n_chunks as _,
-                        self.data_ptr() as _,
-                        stream_ptr as _,
-                    );
-                },
+                BaguaTensorDtype::F16 => {
+                    unimplemented!()
+                }
                 BaguaTensorDtype::U8 => {
                     unimplemented!()
                 }
@@ -825,6 +801,7 @@ impl MinMaxUInt8CompressionParameters {
                 // Note chunk_size is already aligned outside
                 let compressed_align_bytes = align_size(chunk_size, align_bytes) * n_chunks;
                 let min_max_align_bytes = align_size(4 * 2, align_bytes) * n_chunks; // assume min max are both f32
+                println!("compressed_align_bytes: {}, min_max_align_bytes:{}", compressed_align_bytes, min_max_align_bytes);
                 return compressed_align_bytes + min_max_align_bytes;
             }
             BaguaTensorDtype::F16 => {
@@ -832,6 +809,7 @@ impl MinMaxUInt8CompressionParameters {
                 // Note chunk_size is already aligned outside
                 let compressed_align_bytes = align_size(chunk_size, align_bytes) * n_chunks;
                 let min_max_align_bytes = align_size(2 * 2, align_bytes) * n_chunks; // assume min max are both f16
+                println!("compressed_align_bytes: {}, min_max_align_bytes:{}", compressed_align_bytes, min_max_align_bytes);
                 return compressed_align_bytes + min_max_align_bytes;
             }
             BaguaTensorDtype::U8 => {
@@ -885,9 +863,48 @@ impl MinMaxUInt8CompressionParameters {
 }
 
 #[derive(Clone, Debug)]
+pub struct Float2HalfCompressionParameters {}
+
+impl Float2HalfCompressionParameters {
+    pub fn get_compressed_buffer_size(
+        n_chunks: usize,
+        chunk_size: usize,
+        from_dtype: &BaguaTensorDtype,
+    ) -> usize {
+        #[inline]
+        fn align_size(size: usize, align: usize) -> usize {
+            ((size) + (align) - 1) / (align) * (align)
+        }
+
+        match from_dtype {
+            BaguaTensorDtype::F32 => {
+                let align_bytes = 32;
+                // Note chunk_size is already aligned outside
+                return align_size(chunk_size * BaguaTensorDtype::F16.bytes(), align_bytes) * n_chunks;
+                // return chunk_size * BaguaTensorDtype::F16.bytes() * n_chunks;
+            }
+            BaguaTensorDtype::F16 => {
+                let align_bytes = 32;
+                // Note chunk_size is already aligned outside
+                return align_size(chunk_size * BaguaTensorDtype::F16.bytes(), align_bytes) * n_chunks;
+            }
+            BaguaTensorDtype::U8 => {
+                unimplemented!()
+            }
+            BaguaTensorDtype::I64 => {
+                unimplemented!()
+            }
+            BaguaTensorDtype::U64 => {
+                unimplemented!()
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub enum TensorCompressionMethod {
     MinMaxUInt8(MinMaxUInt8CompressionParameters),
-    MinMaxFloat16(MinMaxUInt8CompressionParameters),
+    Float2Half(Float2HalfCompressionParameters),
 }
 
 impl BaguaTensorRaw {}
@@ -991,7 +1008,7 @@ impl BaguaTensor {
                     ready_cuda_event_ptr: 0,
                 })),
             },
-            "MinMaxFloat16" => Self {
+            "Float2Half" => Self {
                 inner: Arc::new(RwLock::new(BaguaTensorInner {
                     name: "compressed_tensor".to_string(),
                     raw: self
@@ -999,8 +1016,8 @@ impl BaguaTensor {
                         .read()
                         .raw
                         .compress(
-                            &TensorCompressionMethod::MinMaxFloat16(
-                                MinMaxUInt8CompressionParameters {},
+                            &TensorCompressionMethod::Float2Half(
+                                Float2HalfCompressionParameters {},
                             ),
                             n_chunks,
                             0,
@@ -1059,9 +1076,9 @@ impl BaguaTensor {
                     0,
                 );
             },
-            "MinMaxFloat16" => {
+            "Float2Half" => {
                 self.inner.write().raw.decompress_from(
-                    &TensorCompressionMethod::MinMaxFloat16(MinMaxUInt8CompressionParameters {}),
+                    &TensorCompressionMethod::Float2Half(Float2HalfCompressionParameters {}),
                     n_chunks,
                     compressed_buffer.inner.read().raw.as_ref(),
                     0,
@@ -1343,7 +1360,7 @@ impl BaguaBucket {
         communicator_intranode: Option<&BaguaSingleCommunicator>,
         hierarchical: bool,
         peer_selection_mode: String,
-        compression: String,
+        compression: Option<String>,
         weight: BaguaTensor,
         left_peer_weight: BaguaTensor,
         right_peer_weight: BaguaTensor,
@@ -1351,8 +1368,8 @@ impl BaguaBucket {
         let communicator =
             BaguaCommunicator::new(communicator_internode, communicator_intranode, hierarchical)
                 .expect("cannot create communicator");
-        let comm_op: Arc<dyn CommOpTrait + Send + Sync> = Arc::new(
-            DecentralizedLowPrecisionSynchronous {
+        let comm_op: Arc<dyn CommOpTrait + Send + Sync> = match compression {
+            None => Arc::new(DecentralizedLowPrecisionSynchronous {
                 communicator,
                 peer_selection_mode: match peer_selection_mode.as_str() {
                     "ring" => PeerSelectionMode::Ring,
@@ -1366,8 +1383,43 @@ impl BaguaBucket {
                 weight,
                 left_peer_weight,
                 right_peer_weight,
+            }),
+            Some(x) => match x.as_str() {
+                "MinMaxUInt8" => Arc::new(DecentralizedLowPrecisionSynchronous {
+                    communicator,
+                    peer_selection_mode: match peer_selection_mode.as_str() {
+                        "ring" => PeerSelectionMode::Ring,
+                        &_ => {
+                            unimplemented!("unsupported peer_selection_mode for low precision decentralized algorithm (should be `ring`)")
+                        }
+                    },
+                    compression_method: TensorCompressionMethod::MinMaxUInt8(
+                        MinMaxUInt8CompressionParameters {},
+                    ),
+                    weight,
+                    left_peer_weight,
+                    right_peer_weight,
+                }),
+                "Float2Half" => Arc::new(DecentralizedLowPrecisionSynchronous {
+                    communicator,
+                    peer_selection_mode: match peer_selection_mode.as_str() {
+                        "ring" => PeerSelectionMode::Ring,
+                        &_ => {
+                            unimplemented!("unsupported peer_selection_mode for low precision decentralized algorithm (should be `ring`)")
+                        }
+                    },
+                    compression_method: TensorCompressionMethod::Float2Half(
+                        Float2HalfCompressionParameters {},
+                    ),
+                    weight,
+                    left_peer_weight,
+                    right_peer_weight,
+                }),
+                _ => {
+                    unimplemented!()
+                }
             },
-        );
+        };
 
         self.inner.lock().comm_ops.push(comm_op);
     }
@@ -1432,18 +1484,13 @@ impl BaguaBucket {
                 scattergather,
             }),
             Some(x) => match x.as_str() {
-                "MinMaxFloat16" => Arc::new(CentralizedMiddlePrecisionSynchronous {
+                "Float2Half" => Arc::new(CentralizedMiddlePrecisionSynchronous {
                     communicator,
                     average,
-                    compression_method: TensorCompressionMethod::MinMaxFloat16(
-                        MinMaxUInt8CompressionParameters {},
+                    compression_method: TensorCompressionMethod::Float2Half(
+                        Float2HalfCompressionParameters {},
                     ),
                 }),
-                // "MinMaxFloat16" => Arc::new(CentralizedMiddlePrecisionSynchronous {
-                //     communicator,
-                //     average,
-                //     scattergather,
-                // }),
                 _ => {
                     unimplemented!()
                 }

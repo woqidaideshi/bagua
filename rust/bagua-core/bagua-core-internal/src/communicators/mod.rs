@@ -645,6 +645,8 @@ impl BaguaCommunicatorInner {
         let count = tensor.num_elements_allocated() / self.nranks;
         let nccl_tensor_type = tensor.dtype().to_nccl_datatype();
         let tensor_ptr = tensor.data_ptr();
+        println!("---alltoall_inplace, num_elements_allocated: {}, count: {}, nccl_tensor_type: {}",tensor.num_elements_allocated(), count, nccl_tensor_type);
+        println!("---alltoall_inplace, tensor_ptr:{}", tensor_ptr);
 
         unsafe {
             cpp::cpp!([tensor_ptr as "void *", count as "size_t", communicator_ptr as "Al::NCCLCommunicator *",  nccl_tensor_type as "ncclDataType_t"]
@@ -663,6 +665,7 @@ impl BaguaCommunicatorInner {
                 }
             });
         }
+        println!("----------------------0");
     }
 
     pub fn alltoall_v(

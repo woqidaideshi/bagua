@@ -32,12 +32,12 @@ class MinMaxUInt8:
         lower_bound = upper_bound - self.quantization_level
         return (compressed.float() + lower_bound) / scale
 
-class MinMax2Float16(MinMaxUInt8):
+class MinMaxFloat16(MinMaxUInt8):
     def __init__(self):
         self.eps = 1e-15
         self.quantization_level = 65535.0
 
-class MinMaxFloat16:
+class Float2Half:
     def compress(self, tensor: torch.Tensor) -> (torch.Tensor):
         return tensor.half()
 
@@ -58,10 +58,10 @@ if __name__ == "__main__":
     print(f"{decompressed}")
     print(f"{diff}, {torch.norm(diff)}")
 
-    print("-----MinMaxFloat16")
+    print("-----Float2Half")
     # x = torch.rand(65530).cuda()
-    compressed = MinMaxFloat16().compress(x)
-    decompressed = MinMaxFloat16().decompress(compressed)
+    compressed = Float2Half().compress(x)
+    decompressed = Float2Half().decompress(compressed)
 
     diff = x - decompressed
     print(f"{x}")
@@ -72,12 +72,12 @@ if __name__ == "__main__":
     diff = x - compressed
     print(f"{diff}, {torch.norm(diff)}")
 
-    print("-----MinMax2Float16")
-    _minmax, compressed = MinMax2Float16().compress(x)
-    decompressed = MinMax2Float16().decompress(_minmax, compressed)
+    print("-----MinMaxFloat16")
+    _minmax, compressed = MinMaxFloat16().compress(x)
+    decompressed = MinMaxFloat16().decompress(_minmax, compressed)
 
     diff = x - decompressed
-    print("-----MinMax2Float16")
+    print("-----MinMaxFloat16")
     print(f"{x}")
     print(f"{compressed}")
     print(f"{decompressed}")

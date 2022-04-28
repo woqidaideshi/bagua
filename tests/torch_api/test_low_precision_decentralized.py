@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from tests.internal.common_utils import find_free_port
-from tests.internal.compressor import MinMaxUInt8, MinMaxFloat16, MinMax2Float16
+from tests.internal.compressor import MinMaxUInt8, Float2Half, MinMaxFloat16
 import os
 import unittest
 import multiprocessing
@@ -63,7 +63,7 @@ def _init_torch_env(rank, nprocs, backend):
     )
 
 
-def run_model(rank, nprocs, nranks, hierarchical, communication_interval, results, env):
+def run_model(rank, nprocs, nranks, hierarchical, communication_interval, results, env, compression):
     _init_bagua_env(rank, env)
     group = bagua.communication.new_group(ranks=list(range(nranks)))
 
@@ -81,6 +81,7 @@ def run_model(rank, nprocs, nranks, hierarchical, communication_interval, result
         bagua.algorithms.decentralized.LowPrecisionDecentralizedAlgorithm(
             hierarchical=hierarchical,
             communication_interval=communication_interval,
+            compression=compression,
         ),
         process_group=group,
     )
@@ -109,7 +110,7 @@ def run_model(rank, nprocs, nranks, hierarchical, communication_interval, result
 
 
 def run_torch_model(
-    rank, nprocs, hierarchical, communication_interval, results, backend, env, compressor
+    rank, nprocs, hierarchical, communication_interval, results, backend, env, compression
 ):
     _init_torch_env(rank, nprocs, backend)
 
@@ -120,7 +121,7 @@ def run_torch_model(
 
     # wrap model
     model = LowPrecDecentralizedAlgor(
-        model, optimizer, hierarchical, communication_interval, compressor=compressor
+        model, optimizer, hierarchical, communication_interval, compression=compression
     )
 
     ret = results[rank]
@@ -155,17 +156,17 @@ class Result(object):
 
 
 class LowPrecDecentralizedAlgor(nn.Module):
-    def __init__(self, module, optimizer, hierarchical, communication_interval, compressor=None):
+    def __init__(self, module, optimizer, hierarchical, communication_interval, compression=None):
         super(LowPrecDecentralizedAlgor, self).__init__()
         self.module = module
         self.optimizer = optimizer
         self.hierarchical = hierarchical
         self.communication_interval = communication_interval
-        if compressor == "float16":
-            self.compressor = MinMaxFloat16()
-        elif compressor == "2float16":
-            self.compressor = MinMax2Float16
-        elif compressor == "int":
+        if compression == "Float2Half":
+            self.compressor = Float2Half()
+        elif compression == "MinMaxFloat16":
+            self.compressor = MinMaxFloat16
+        elif compression == "MinMaxUInt8":
             self.compressor = MinMaxUInt8()
         else:
             self.compressor = None
@@ -243,7 +244,7 @@ class LowPrecDecentralizedAlgor(nn.Module):
                     )
 
                     diff = self.compressor.decompress(minmax, compressed)
-                elif isinstance(self.compressor, MinMaxFloat16) or isinstance(self.compressor, MinMax2Float16):
+                elif isinstance(self.compressor, Float2Half) or isinstance(self.compressor, MinMaxFloat16):
                     compressed = self.compressor.compress(x)
                     left_compressed, right_compressed = communicate_with_peers(
                         compressed, comm_size
@@ -251,7 +252,7 @@ class LowPrecDecentralizedAlgor(nn.Module):
                     self.left_peer_weight += self.compressor.decompress(left_compressed) # left_compressed
                     self.right_peer_weight += self.compressor.decompress(right_compressed) # right_compressed
                     # diff = self.compressor.decompress(compressed)
-                    if isinstance(self.compressor, MinMaxFloat16):
+                    if isinstance(self.compressor, Float2Half):
                         diff = compressed
                     else:
                         diff = self.compressor.decompress(compressed)
@@ -287,7 +288,7 @@ class LowPrecDecentralizedAlgor(nn.Module):
 
 
 class TestLowPrecisionDecentralized(unittest.TestCase):
-    def run_test_locally(self, nprocs, nranks, hierarchical, communication_interval):
+    def run_test_locally(self, nprocs, nranks, hierarchical, communication_interval, compression=None):
         assert nranks >= 0
 
         env = {
@@ -312,6 +313,7 @@ class TestLowPrecisionDecentralized(unittest.TestCase):
                     communication_interval,
                     results,
                     env,
+                    compression,
                 ),
             )
             p.start()
@@ -345,7 +347,7 @@ class TestLowPrecisionDecentralized(unittest.TestCase):
                     )
                 )
 
-    def run_diff_locally(self, nprocs, hierarchical, communication_interval, backend, compressor=None):
+    def run_diff_locally(self, nprocs, hierarchical, communication_interval, backend, compression=None):
         env = {}
 
         mp = multiprocessing.get_context("spawn")
@@ -362,7 +364,7 @@ class TestLowPrecisionDecentralized(unittest.TestCase):
                     torch_results,
                     backend,
                     env,
-                    compressor,
+                    compression,
                 ),
             )
             p.start()
@@ -392,6 +394,7 @@ class TestLowPrecisionDecentralized(unittest.TestCase):
                     communication_interval,
                     bagua_results,
                     env,
+                    compression,
                 ),
             )
             p.start()
@@ -424,25 +427,26 @@ class TestLowPrecisionDecentralized(unittest.TestCase):
     @skip_if_cuda_not_available()
     def test_algorithm(self):
         nprocs = torch.cuda.device_count()
+        compression="Float2Half"  # MinMaxUInt8 Float2Half MinMaxFloat16
         self.run_test_locally(
-            nprocs, nprocs, hierarchical=False, communication_interval=1
+            nprocs, nprocs, hierarchical=False, communication_interval=1, compression=compression
         )
         self.run_test_locally(
-            nprocs, nprocs, hierarchical=True, communication_interval=1
+            nprocs, nprocs, hierarchical=True, communication_interval=1, compression=compression
         )
 
     @skip_if_cuda_not_available()
     def test_compare(self):
-        compressor="float16"  # 2float16, float16
+        compression="Float2Half"  # MinMaxUInt8 Float2Half MinMaxFloat16
         nprocs = torch.cuda.device_count()
         self.run_diff_locally(
-            nprocs, hierarchical=False, communication_interval=1, backend="gloo", compressor=compressor
+            nprocs, hierarchical=False, communication_interval=1, backend="gloo", compression=compression
         )
         self.run_diff_locally(
-            nprocs, hierarchical=False, communication_interval=2, backend="gloo", compressor=compressor
+            nprocs, hierarchical=False, communication_interval=2, backend="gloo", compression=compression
         )
         self.run_diff_locally(
-            nprocs, hierarchical=True, communication_interval=1, backend="nccl", compressor=compressor
+            nprocs, hierarchical=True, communication_interval=1, backend="nccl", compression=compression
         )
 
 if __name__ == "__main__":

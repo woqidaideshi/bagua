@@ -63,7 +63,7 @@ def run_torch_model(
 
     model = Net().cuda()
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
-    model = LowPrecDecentralizedAlgor(model, optimizer, hierarchical, communication_interval, compressor=args.compressor)
+    model = LowPrecDecentralizedAlgor(model, optimizer, hierarchical, communication_interval, compression=args.compression)
 
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs+1):
@@ -133,9 +133,9 @@ def main():
     )
 
     parser.add_argument(
-        "--compressor",
+        "--compression",
         type=str,
-        default="float16",
+        default="Float2Half",
         help="gradient_allreduce, bytegrad, decentralized, low_precision_decentralized, qadam, async",
     )
 

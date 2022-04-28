@@ -153,6 +153,7 @@ class LowPrecisionDecentralizedAlgorithmImpl(AlgorithmImpl):
         process_group: BaguaProcessGroup,
         hierarchical: bool = True,
         communication_interval: int = 1,
+        compression: str = "MinMaxUInt8",
     ):
         """
         Implementation of the
@@ -167,6 +168,7 @@ class LowPrecisionDecentralizedAlgorithmImpl(AlgorithmImpl):
         super(LowPrecisionDecentralizedAlgorithmImpl, self).__init__(process_group)
         self.hierarchical = hierarchical
         self.communication_interval = communication_interval
+        self.compression = compression
 
     def _should_communicate(self, bagua_ddp: BaguaDistributedDataParallel) -> bool:
         cur_step = bagua_ddp.bagua_train_step_counter - 1
@@ -274,7 +276,7 @@ class LowPrecisionDecentralizedAlgorithmImpl(AlgorithmImpl):
             left_peer_weight=bucket._left_peer_weight,
             right_peer_weight=bucket._right_peer_weight,
             hierarchical=self.hierarchical,
-            compression="MinMaxUInt8",
+            compression=self.compression,
             group=self.process_group,
         )
 
@@ -313,7 +315,7 @@ class DecentralizedAlgorithm(Algorithm):
 
 
 class LowPrecisionDecentralizedAlgorithm(Algorithm):
-    def __init__(self, hierarchical: bool = True, communication_interval: int = 1):
+    def __init__(self, hierarchical: bool = True, communication_interval: int = 1, compression: str = "MinMaxUInt8"):
         """
         Create an instance of the
         `Low Precision Decentralized SGD <https://tutorials.baguasys.com/algorithms/low-precision-decentralized>`_
@@ -325,6 +327,7 @@ class LowPrecisionDecentralizedAlgorithm(Algorithm):
         """
         self.hierarchical = hierarchical
         self.communication_interval = communication_interval
+        self.compression = compression
 
     def reify(
         self, process_group: BaguaProcessGroup
@@ -333,6 +336,7 @@ class LowPrecisionDecentralizedAlgorithm(Algorithm):
             process_group,
             hierarchical=self.hierarchical,
             communication_interval=self.communication_interval,
+            compression=self.compression
         )
 
 class QGAdamOptimizer(Optimizer):

@@ -50,6 +50,12 @@ class ByteGradAlgorithmImpl(AlgorithmImpl):
         bucket: BaguaBucket,
     ):
         bucket.clear_ops()
+        def loginfo(*args):
+            length = 0
+            for tensor in bucket.tensors:
+                length += tensor.bagua_getter_closure().numel();
+            print("----ByteGradAlgorithmImpl loginfo size: {}, len: {}".format(len(bucket.tensors), length))
+        bucket.append_python_op(loginfo, group=self.process_group)
         bucket.append_centralized_synchronous_op(
             hierarchical=self.hierarchical,
             average=self.average,
@@ -119,7 +125,7 @@ class Float16GradAlgorithmImpl(AlgorithmImpl):
             hierarchical=self.hierarchical,
             average=self.average,
             scattergather=True,
-            compression="MinMaxFloat16",
+            compression="Float2Half",
             group=self.process_group,
         )
 

@@ -322,7 +322,7 @@ class BaguaBucket:
         left_peer_weight: BaguaTensor,
         right_peer_weight: BaguaTensor,
         hierarchical: bool = True,
-        compression: str = "MinMaxUInt8",
+        compression: Optional[str] = None,
         group: Optional[BaguaProcessGroup] = None,
     ):
         """
