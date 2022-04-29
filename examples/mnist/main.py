@@ -13,8 +13,6 @@ import logging
 import bagua.torch_api as bagua
 from datetime import datetime
 
-from bagua.torch_api.algorithms import sketch
-
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
@@ -322,6 +320,12 @@ def main():
     elif args.algorithm == "sketch":
         from bagua.torch_api.algorithms import sketch
         algorithm = sketch.SketchAlgorithm(optimizer)
+    elif args.algorithm == "qsparse":
+        from bagua.torch_api.algorithms import qsparselocal
+        optimizer = qsparselocal.QSparseLocalOptimizer(
+            model.parameters(), lr=args.lr, k=10
+        )
+        algorithm = qsparselocal.QSparseLocalAlgorithm(optimizer)
     else:
         raise NotImplementedError
 

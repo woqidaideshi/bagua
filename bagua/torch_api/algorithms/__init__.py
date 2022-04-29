@@ -3,6 +3,7 @@
 from .base import Algorithm, AlgorithmImpl, GlobalAlgorithmRegistry  # noqa: F401
 from . import bytegrad, decentralized, gradient_allreduce  # noqa: F401
 from . import q_adam, async_model_average, sketch  # noqa: F401
+from . import qsparselocal
 
 
 GlobalAlgorithmRegistry.register(
@@ -45,4 +46,7 @@ GlobalAlgorithmRegistry.register(
 )
 GlobalAlgorithmRegistry.register(
     "sketch", sketch.SketchAlgorithm, description="Sketch Algorithm"
+)
+GlobalAlgorithmRegistry.register(
+    "qsparse", qsparselocal.QSparseLocalAlgorithm, description="Qsparselocal Algorithm"
 )
