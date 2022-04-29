@@ -10,10 +10,10 @@ python test.py --nprocs 2 --epochs 6 > /dev/null
 
 python -m bagua.distributed.launch --nproc_per_node=2 main.py --algorithm gradient_allreduce_sketch > /dev/null
 
-
 python -m bagua.distributed.launch --nproc_per_node=1 main.py --algorithm gradient_allreduce > /dev/null
-
 
 python -m bagua.distributed.launch --nproc_per_node=2 main.py --algorithm sketch > /dev/null
 
 python -m bagua.distributed.launch --nproc_per_node=1 main.py --algorithm floatgrad > /dev/null
+
+python -m bagua.distributed.launch --nproc_per_node=4 relaysum.py
