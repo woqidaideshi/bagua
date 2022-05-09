@@ -16,6 +16,6 @@ python -m bagua.distributed.launch --nproc_per_node=2 main.py --algorithm sketch
 
 python -m bagua.distributed.launch --nproc_per_node=1 main.py --algorithm floatgrad > /dev/null
 
-python -m bagua.distributed.launch --nproc_per_node=1 main.py --algorithm qsparse > /dev/null
+python -m bagua.distributed.launch --nproc_per_node=3 main.py --algorithm qsparse > /dev/null
 
 python -m bagua.distributed.launch --nproc_per_node=4 relaysum.py

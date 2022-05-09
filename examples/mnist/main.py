@@ -51,41 +51,41 @@ def train(args, model, train_loader, optimizer, epoch, rank=0):
         optimizer.zero_grad()
         output = model(data)
         loss = F.nll_loss(output, target)
-        if args.algorithm == "sketch":
-            print("----pre backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][-1].grad[0:10]))
-            for tensor in optimizer.param_groups[0]["params"]:
-                if tensor.is_bagua_tensor():
-                    print("----pre backward batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, tensor.newgrad))
-        elif "sketch" in args.algorithm:
-            print("----pre backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
-            print("----pre backward batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].newgrad))
-        else:
-            print("----pre backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
+        # if args.algorithm == "sketch":
+        #     print("----pre backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][-1].grad[0:10]))
+        #     for tensor in optimizer.param_groups[0]["params"]:
+        #         if tensor.is_bagua_tensor():
+        #             print("----pre backward batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, tensor.newgrad))
+        # elif "sketch" in args.algorithm:
+        #     print("----pre backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
+        #     print("----pre backward batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].newgrad))
+        # else:
+        #     print("----pre backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
         loss.backward()
-        if args.algorithm == "sketch":
-            print("----post backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][-1].grad[0:10]))
-            for tensor in optimizer.param_groups[0]["params"]:
-                if tensor.is_bagua_tensor():
-                    print("----post backward batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, tensor.newgrad))
-        elif "sketch" in args.algorithm:
-            print("----post backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
-            print("----post backward batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].newgrad))
-        else:
-            print("----post backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
+        # if args.algorithm == "sketch":
+        #     print("----post backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][-1].grad[0:10]))
+        #     for tensor in optimizer.param_groups[0]["params"]:
+        #         if tensor.is_bagua_tensor():
+        #             print("----post backward batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, tensor.newgrad))
+        # elif "sketch" in args.algorithm:
+        #     print("----post backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
+        #     print("----post backward batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].newgrad))
+        # else:
+        #     print("----post backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
         if args.fuse_optimizer:
             optimizer.fuse_step()
         else:
             optimizer.step()
-        if args.algorithm == "sketch":
-            print("----post optimizer.step batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][-1].grad[0:10]))
-            for tensor in optimizer.param_groups[0]["params"]:
-                if tensor.is_bagua_tensor():
-                    print("----post optimizer.step batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, tensor.newgrad))
-        elif "sketch" in args.algorithm:
-            print("----post optimizer.step batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
-            print("----post optimizer.step batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].newgrad))
-        else:
-            print("----post optimizer.step batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
+        # if args.algorithm == "sketch":
+        #     print("----post optimizer.step batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][-1].grad[0:10]))
+        #     for tensor in optimizer.param_groups[0]["params"]:
+        #         if tensor.is_bagua_tensor():
+        #             print("----post optimizer.step batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, tensor.newgrad))
+        # elif "sketch" in args.algorithm:
+        #     print("----post optimizer.step batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
+        #     print("----post optimizer.step batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].newgrad))
+        # else:
+        #     print("----post optimizer.step batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
         if batch_idx % args.log_interval == 0:
             logging.info(
                 "Train Rank: {} Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
@@ -311,7 +311,7 @@ def main():
         from bagua.torch_api.algorithms import q_adam
 
         optimizer = q_adam.QAdamOptimizer(
-            model.parameters(), lr=args.lr, warmup_steps= 100
+            model.parameters(), lr=args.lr, warmup_steps= 10
         )
         algorithm = decentralized.QGAdamLowPrecisionDecentralizedAlgorithm(optimizer)
     elif args.algorithm == "gradient_allreduce_sketch":
@@ -321,9 +321,19 @@ def main():
         from bagua.torch_api.algorithms import sketch
         algorithm = sketch.SketchAlgorithm(optimizer)
     elif args.algorithm == "qsparse":
-        from bagua.torch_api.algorithms import qsparselocal
+        # import qsparselocal
+        # # from bagua.torch_api.algorithms import qsparselocal
+        # optimizer = qsparselocal.QSparseLocalOptimizer(
+        #     model.parameters(), lr=args.lr, k=10
+        # )
+        # algorithm = qsparselocal.QSparseLocalAlgorithm(optimizer)
+        import qsparselocal
+        learning_rate = args.lr
+        #Gap between synchronization rounds
+        gap = 1
+
         optimizer = qsparselocal.QSparseLocalOptimizer(
-            model.parameters(), lr=args.lr, k=10
+            model.parameters(), lr=learning_rate, schedule = gap +1
         )
         algorithm = qsparselocal.QSparseLocalAlgorithm(optimizer)
     else:
