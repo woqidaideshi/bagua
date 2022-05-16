@@ -9,6 +9,7 @@ import torch
 import math
 import numpy as np
 from typing import List, Tuple
+import logging
 
 sparsify = True
 use_memory = True
@@ -140,9 +141,9 @@ class QSparseLocalOptimizer(Optimizer):
 
         # initialize global and local model, and memory for error compensation
         for group_id, group in enumerate(self.param_groups):
-            params_with_grad = []
+            # params_with_grad = []
             for p in group["params"]:
-                params_with_grad.append(p)
+                # params_with_grad.append(p)
                 state = self.state[p]
                 if len(state) == 0:
 
@@ -205,16 +206,19 @@ class QSparseLocalAlgorithmImpl(AlgorithmImpl):
         super(QSparseLocalAlgorithmImpl, self).__init__(process_group)
         self.hierarchical = hierarchical
         self.optimizer = q_sparse_local_optimizer
-        self.sync = self.optimizer.sync
+        # self.sync = self.optimizer.sync
 
     def need_reset(self):
-        if self.optimizer.sync or \
-          self.optimizer.step_id%self.optimizer.schedule == self.optimizer.schedule-1:
+        # return False
+        if (self.optimizer.sync ^ ((self.optimizer.step_id - 1) %self.optimizer.schedule != 0)):
+            logging.info("--------------------need_reset: True")
             return True
         else:
-          return False
+            logging.info("--------------------need_reset: False")
+            return False
 
     def init_tensors(self, bagua_distributed_data_parallel: BaguaDistributedDataParallel):
+        logging.info("------------init_tensors")
         if self.optimizer.sync:
             parameters = bagua_distributed_data_parallel.bagua_build_params()
 
@@ -246,6 +250,7 @@ class QSparseLocalAlgorithmImpl(AlgorithmImpl):
     def tensors_to_buckets(
             self, tensors: List[List[BaguaTensor]], do_flatten: bool
     ) -> List[BaguaBucket]:
+        logging.info("------------tensors_to_buckets")
         bagua_buckets = []
         for idx, bucket in enumerate(tensors):
             bagua_bucket = BaguaBucket(
@@ -262,6 +267,7 @@ class QSparseLocalAlgorithmImpl(AlgorithmImpl):
             bagua_distributed_data_parallel: BaguaDistributedDataParallel,
             bucket: BaguaBucket,
     ):
+        logging.info("------------init_operations")
         bucket.clear_ops()      
         # For synchronization round we utilize allreduce, else no synchronization takes place
         if self.optimizer.sync:
@@ -296,14 +302,23 @@ class QSparseLocalAlgorithmImpl(AlgorithmImpl):
     def init_backward_hook(self, bagua_distributed_data_parallel: BaguaDistributedDataParallel):
 
         def hook_qsl_grad(parameter_name, parameter):
+            if parameter.is_bagua_tensor():
+                assert (
+                        parameter.bagua_backend_tensor().data_ptr()
+                        == self.optimizer.state[parameter]["qsl_grad"].data_ptr()
+                ), "bagua backend tensor data_ptr should match _q_sparse_local_grad data_ptr"
+                parameter.bagua_mark_communication_ready()
+
+        def hook_grad(parameter_name, parameter):
             assert (
-                    parameter.bagua_backend_tensor().data_ptr()
-                    == self.optimizer.state[parameter]["qsl_grad"].data_ptr()
+                True
             ), "bagua backend tensor data_ptr should match _q_sparse_local_grad data_ptr"
-            parameter.bagua_mark_communication_ready()
-
+            True
+        # if self.optimizer.sync:
+        #     return hook_qsl_grad
+        # else:
+        #     return hook_grad
         return hook_qsl_grad
-
 
 class QSparseLocalAlgorithm(Algorithm):
     def __init__(self, q_sparse_local_optimizer: QSparseLocalOptimizer, hierarchical: bool = True):
