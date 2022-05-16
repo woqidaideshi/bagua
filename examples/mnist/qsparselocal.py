@@ -209,43 +209,66 @@ class QSparseLocalAlgorithmImpl(AlgorithmImpl):
         # self.sync = self.optimizer.sync
 
     def need_reset(self):
-        # return False
-        if (self.optimizer.sync ^ ((self.optimizer.step_id - 1) %self.optimizer.schedule != 0)):
-            logging.info("--------------------need_reset: True")
-            return True
-        else:
-            logging.info("--------------------need_reset: False")
-            return False
+        return False
+        # if (self.optimizer.sync ^ ((self.optimizer.step_id - 1) %self.optimizer.schedule != 0)):
+        #     logging.info("--------------------need_reset: True")
+        #     return True
+        # else:
+        #     logging.info("--------------------need_reset: False")
+        #     return False
 
     def init_tensors(self, bagua_distributed_data_parallel: BaguaDistributedDataParallel):
         logging.info("------------init_tensors")
-        if self.optimizer.sync:
-            parameters = bagua_distributed_data_parallel.bagua_build_params()
+        # if self.optimizer.sync:
+        #     parameters = bagua_distributed_data_parallel.bagua_build_params()
+        #
+        #     for idx, (name, param) in enumerate(parameters.__reversed__()):
+        #         param._q_sparse_local_name = name
+        #         param._q_sparse_local_idx = idx
+        #
+        #     tensor_groups = []
+        #     for group in self.optimizer.param_groups:
+        #         for param in group["params"]:
+        #             def set_weights(param, t):
+        #                 # Set compressed gradient to mean of all workers' compressed gradients
+        #                 self.optimizer.state[param]["qsl_grad"] = t
+        #
+        #             registered_tensor = param.bagua_ensure_grad().ensure_bagua_tensor(
+        #                 param._q_sparse_local_name,
+        #                 bagua_distributed_data_parallel.bagua_module_name,
+        #                 getter_closure=lambda param: self.optimizer.state[param]["qsl_grad"],
+        #                 setter_closure=set_weights,
+        #             )
+        #             tensor_groups.append(registered_tensor)
+        #
+        #
+        #     tensor_groups.sort(key=lambda x: x._q_sparse_local_idx)
+        #     return tensor_groups
+        # else:
+        #     return []
+        parameters = bagua_distributed_data_parallel.bagua_build_params()
 
-            for idx, (name, param) in enumerate(parameters.__reversed__()):
-                param._q_sparse_local_name = name
-                param._q_sparse_local_idx = idx
+        for idx, (name, param) in enumerate(parameters.__reversed__()):
+            param._q_sparse_local_name = name
+            param._q_sparse_local_idx = idx
 
-            tensor_groups = []
-            for group in self.optimizer.param_groups:
-                for param in group["params"]:
-                    def set_weights(param, t):
-                        # Set compressed gradient to mean of all workers' compressed gradients
-                        self.optimizer.state[param]["qsl_grad"] = t
+        tensor_groups = []
+        for group in self.optimizer.param_groups:
+            for param in group["params"]:
+                def set_weights(param, t):
+                    # Set compressed gradient to mean of all workers' compressed gradients
+                    self.optimizer.state[param]["qsl_grad"] = t
 
-                    registered_tensor = param.bagua_ensure_grad().ensure_bagua_tensor(
-                        param._q_sparse_local_name,
-                        bagua_distributed_data_parallel.bagua_module_name,
-                        getter_closure=lambda param: self.optimizer.state[param]["qsl_grad"],
-                        setter_closure=set_weights,
-                    )
-                    tensor_groups.append(registered_tensor)
+                registered_tensor = param.bagua_ensure_grad().ensure_bagua_tensor(
+                    param._q_sparse_local_name,
+                    bagua_distributed_data_parallel.bagua_module_name,
+                    getter_closure=lambda param: self.optimizer.state[param]["qsl_grad"],
+                    setter_closure=set_weights,
+                )
+                tensor_groups.append(registered_tensor)
 
-
-            tensor_groups.sort(key=lambda x: x._q_sparse_local_idx)
-            return tensor_groups
-        else:
-            return []
+        tensor_groups.sort(key=lambda x: x._q_sparse_local_idx)
+        return tensor_groups
 
     def tensors_to_buckets(
             self, tensors: List[List[BaguaTensor]], do_flatten: bool
@@ -270,55 +293,77 @@ class QSparseLocalAlgorithmImpl(AlgorithmImpl):
         logging.info("------------init_operations")
         bucket.clear_ops()      
         # For synchronization round we utilize allreduce, else no synchronization takes place
-        if self.optimizer.sync:
-            def preprocess(*args):
-              for group_id, group in enumerate(self.optimizer.param_groups):
+        # if self.optimizer.sync:
+        #     def preprocess(*args):
+        #       for group_id, group in enumerate(self.optimizer.param_groups):
+        #         for param_id, param in enumerate(group["params"]):
+        #             state = self.optimizer.state[param]
+        #             ##### Before allreduce operation
+        #             # Compute temporary local parameter vector
+        #             # Compute compressed gradient and new error compensation term
+        #             param.data.add_(param.grad,alpha=-self.optimizer.lr)
+        #             if self.optimizer.sync:
+        #                 # No output, new values assigned inside the function
+        #                 qsl(param.data - state["global"], state["memory"],state["qsl_grad"],
+        #                                             topK_flag=top_k_sparsification, s=quantization_levels)
+        #
+        #     bucket.append_python_op(lambda *args :preprocess(*args), group=self.process_group)
+        #
+        #     # Compression is done by Bagua
+        #
+        #     bucket.append_centralized_synchronous_op(
+        #         hierarchical=self.hierarchical,
+        #         average=True,  # Maybe try false and then average it manually to preserve ints
+        #         scattergather=True,
+        #         compression="MinMaxUInt8",
+        #         group=self.process_group,
+        #     )
+        # else:  # Nothing happens
+        #     pass
+        def preprocess(*args):
+            for group_id, group in enumerate(self.optimizer.param_groups):
                 for param_id, param in enumerate(group["params"]):
                     state = self.optimizer.state[param]
                     ##### Before allreduce operation
                     # Compute temporary local parameter vector
                     # Compute compressed gradient and new error compensation term
-                    param.data.add_(param.grad,alpha=-self.optimizer.lr) 
+                    param.data.add_(param.grad, alpha=-self.optimizer.lr)
                     if self.optimizer.sync:
                         # No output, new values assigned inside the function
-                        qsl(param.data - state["global"], state["memory"],state["qsl_grad"],
-                                                    topK_flag=top_k_sparsification, s=quantization_levels)
+                        qsl(param.data - state["global"], state["memory"], state["qsl_grad"],
+                            topK_flag=top_k_sparsification, s=quantization_levels)
 
-            bucket.append_python_op(lambda *args :preprocess(*args), group=self.process_group)
+        bucket.append_python_op(lambda *args: preprocess(*args), group=self.process_group)
 
-            # Compression is done by Bagua
+        # Compression is done by Bagua
 
-            bucket.append_centralized_synchronous_op(
-                hierarchical=self.hierarchical,
-                average=True,  # Maybe try false and then average it manually to preserve ints
-                scattergather=True,
-                compression="MinMaxUInt8",    
-                group=self.process_group,
-            )
-        else:  # Nothing happens
-            pass
-
+        bucket.append_centralized_synchronous_op(
+            hierarchical=self.hierarchical,
+            average=True,  # Maybe try false and then average it manually to preserve ints
+            scattergather=True,
+            compression="MinMaxUInt8",
+            group=self.process_group,
+        )
     # Instead of momentum hook, we use a qsl_gradient hook
     def init_backward_hook(self, bagua_distributed_data_parallel: BaguaDistributedDataParallel):
 
         def hook_qsl_grad(parameter_name, parameter):
-            if parameter.is_bagua_tensor():
-                assert (
-                        parameter.bagua_backend_tensor().data_ptr()
-                        == self.optimizer.state[parameter]["qsl_grad"].data_ptr()
-                ), "bagua backend tensor data_ptr should match _q_sparse_local_grad data_ptr"
-                parameter.bagua_mark_communication_ready()
+            assert (
+                    parameter.bagua_backend_tensor().data_ptr()
+                    == self.optimizer.state[parameter]["qsl_grad"].data_ptr()
+            ), "bagua backend tensor data_ptr should match _q_sparse_local_grad data_ptr"
+            parameter.bagua_mark_communication_ready()
 
         def hook_grad(parameter_name, parameter):
             assert (
                 True
             ), "bagua backend tensor data_ptr should match _q_sparse_local_grad data_ptr"
             True
-        # if self.optimizer.sync:
-        #     return hook_qsl_grad
-        # else:
-        #     return hook_grad
-        return hook_qsl_grad
+        if self.optimizer.sync:
+            return hook_qsl_grad
+        else:
+            return hook_grad
+        # return hook_qsl_grad
 
 class QSparseLocalAlgorithm(Algorithm):
     def __init__(self, q_sparse_local_optimizer: QSparseLocalOptimizer, hierarchical: bool = True):
