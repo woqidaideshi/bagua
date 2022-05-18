@@ -48,7 +48,12 @@ def train(args, model, train_loader, optimizer, epoch, rank=0):
         # print("rank: %d, epoch: %d, batch index: %d, datasize: %d, args.batch_size: %d" % (rank, epoch, batch_idx, len(data), args.batch_size))
 
         data, target = data.cuda(), target.cuda()
-        optimizer.zero_grad()
+        if isinstance(optimizer, list):
+            for opt in optimizer:
+                opt.zero_grad()
+        else:
+            optimizer.zero_grad()
+        # optimizer.zero_grad()
         output = model(data)
         loss = F.nll_loss(output, target)
         # if args.algorithm == "sketch":
@@ -73,9 +78,18 @@ def train(args, model, train_loader, optimizer, epoch, rank=0):
         # else:
         #     print("----post backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
         if args.fuse_optimizer:
-            optimizer.fuse_step()
+            if isinstance(optimizer, list):
+                for opt in optimizer:
+                    opt.fuse_step()
+            else:
+                optimizer.fuse_step()
         else:
-            optimizer.step()
+            if isinstance(optimizer, list):
+                for opt in optimizer:
+                    opt.step()
+            else:
+                optimizer.fuse_step()
+        # optimizer.fuse_step()
         # if args.algorithm == "sketch":
         #     print("----post optimizer.step batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][-1].grad[0:10]))
         #     for tensor in optimizer.param_groups[0]["params"]:
@@ -264,6 +278,7 @@ def main():
 
     model = Net().cuda()
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
+    optimizer1 = optim.Adadelta(model.parameters(), lr=args.lr+1)
 
     if args.algorithm == "gradient_allreduce":
         from bagua.torch_api.algorithms import gradient_allreduce
@@ -340,20 +355,21 @@ def main():
         raise NotImplementedError
 
     model = model.with_bagua(
-        [optimizer],
+        [optimizer, optimizer1],
         algorithm,
         do_flatten=not args.fuse_optimizer,
     )
 
     if args.fuse_optimizer:
         optimizer = bagua.contrib.fuse_optimizer(optimizer)
+        optimizer1 = bagua.contrib.fuse_optimizer(optimizer1)
 
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
         if args.algorithm == "async":
             model.bagua_algorithm.resume(model)
 
-        train(args, model, train_loader, optimizer, epoch, rank=bagua.get_rank())
+        train(args, model, train_loader, [optimizer, optimizer1], epoch, rank=bagua.get_rank())
 
         if args.algorithm == "async":
             model.bagua_algorithm.abort(model)
