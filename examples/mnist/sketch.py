@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 from bagua.torch_api.bucket import BaguaBucket
 from bagua.torch_api.data_parallel.bagua_distributed import BaguaDistributedDataParallel
 from bagua.torch_api.algorithms.base import Algorithm, AlgorithmImpl
@@ -101,6 +102,7 @@ class SketchState:
             if p.requires_grad:
                 if not hasattr(p, "sketch_grad"):
                     p.sketch_grad = torch.zeros_like(p.grad)
+                # logging.info("-----------sketch_grad nonzero: {}".format(p.sketch_grad.nonzero().size()[0]))
                 p.grad.set_(gradient[i:i+p.numel()].reshape(p.shape))
                 i += p.numel()
         
@@ -223,7 +225,6 @@ class SketchAlgorithmImpl(AlgorithmImpl):
         bucket: BaguaBucket,
     ):
         bucket.clear_ops()
-
         def log(*args):
             print("----log batch_idx {} in {}: grad---{}.".format(self.optimizer.param_groups[0]["params"][-1].stepid, self.optimizer.param_groups[0]["params"][-1].device, self.optimizer.param_groups[0]["params"][-1].grad[0:10]))
             for tensor in self.optimizer.param_groups[0]["params"]:
@@ -236,6 +237,7 @@ class SketchAlgorithmImpl(AlgorithmImpl):
             assert len(bucket.tensors) == 1, "bucket must only contain a single sketch"
             assert bucket.tensors[0].is_bagua_tensor(), "must be bagua tensor"
             bucket.tensors[0].bagua_setter_closure(encoded_tensor) 
+            # logging.info("======sketch======{}-----".format(encoded_tensor.numel()))
 
         def unsketch(*args):
             assert len(bucket.tensors) == 1, "bucket must only contain a single sketch"
@@ -243,7 +245,8 @@ class SketchAlgorithmImpl(AlgorithmImpl):
 
             encoded_tensor = bucket.tensors[0].bagua_getter_closure().detach()
             self.state.decode(encoded_tensor)
-        
+            # logging.info("======usketch======{}-----".format(encoded_tensor.numel()))
+
         if DEBUG: bucket.append_python_op(log, group=self.process_group)
         bucket.append_python_op(sketch, group=self.process_group)
         if DEBUG: bucket.append_python_op(log, group=self.process_group)
