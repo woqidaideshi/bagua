@@ -511,11 +511,13 @@ compress_float_to_half(float *input, int chunk_size, int chunk_offset, int num_c
                       size_t output_size){
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int idy = blockIdx.y * blockDim.y + threadIdx.y;
+    // printf("----compress gridDim.x: %d, gridDim.y: %d, gridDim.z: %d;\nblockDim.x: %d, blockDim.y: %d, blockDim.z: %d;\nblockIdx.x: %d, blockIdx.y: %d, blockIdx.z: %d;\nthreadIdx.x: %d, threadIdx.y: %d, threadIdx.z: %d.\n", gridDim.x, gridDim.y, gridDim.z, blockDim.x, blockDim.y, blockDim.z, blockIdx.x, blockIdx.y, blockIdx.z, threadIdx.x, threadIdx.y, threadIdx.z);
     // printf("compress_float_to_half---: chunk_size: %d, num_chunks: %d, chunk_offset: %d, output_size: %d, idx: %d, idy: %d\n", chunk_size, num_chunks, chunk_offset, output_size, idx, idy);
-
+    // printf("----compress idx: %d, idy: %d, step: %d.\n", idx, idy, blockDim.x * gridDim.x);
     for (int i = idx; i < chunk_size; i += blockDim.x * gridDim.x) {
         int k = idy * chunk_size + i;
         int o = idy * chunk_offset + i;
+        // printf("compress float32index-k: %d, halfindex-o: %d.\n", k, o);
         // printf("compress o: %d, k: %d, input: %f, test: %f, test2: %f\n", o, k, input[k], __float2half(float(-0.001674)), __half2float(__float2half(float(-0.001674))));
         // half out = __float2half(input[k]);
         // printf("compress o: %d, k: %d, input: %f, out: %f, test: %f\n", o, k, input[k], out, __half2float(out));
@@ -531,10 +533,13 @@ decompress_half_to_float(half *input, size_t input_size, int chunk_size, int chu
                           float *output) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int idy = blockIdx.y * blockDim.y + threadIdx.y;
+    // printf("----decompress gridDim.x: %d, gridDim.y: %d, gridDim.z: %d;\nblockDim.x: %d, blockDim.y: %d, blockDim.z: %d;\nblockIdx.x: %d, blockIdx.y: %d, blockIdx.z: %d;\nthreadIdx.x: %d, threadIdx.y: %d, threadIdx.z: %d.\n", gridDim.x, gridDim.y, gridDim.z, blockDim.x, blockDim.y, blockDim.z, blockIdx.x, blockIdx.y, blockIdx.z, threadIdx.x, threadIdx.y, threadIdx.z);
+    // printf("----decompress idx: %d, idy: %d, step: %d.\n", idx, idy, blockDim.x * gridDim.x);
     // printf("decompress_half_to_float---: input_size: %d, chunk_size: %d, chunk_offset: %d, num_chunks: %d, idx: %d, idy: %d\n", input_size, chunk_size, chunk_offset, num_chunks, idx, idy);
     for (int i = idx; i < chunk_size; i += blockDim.x * gridDim.x) {
         int k = idy * chunk_size + i;
         int o = idy * chunk_offset + i;
+        // printf("decompress float32index-k: %d, halfindex-o: %d.\n", k, o);
         output[k] = __half2float(input[o]);
     }
 }
