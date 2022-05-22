@@ -48,12 +48,12 @@ def train(args, model, train_loader, optimizer, epoch, rank=0):
         # print("rank: %d, epoch: %d, batch index: %d, datasize: %d, args.batch_size: %d" % (rank, epoch, batch_idx, len(data), args.batch_size))
 
         data, target = data.cuda(), target.cuda()
-        if isinstance(optimizer, list):
-            for opt in optimizer:
-                opt.zero_grad()
-        else:
-            optimizer.zero_grad()
-        # optimizer.zero_grad()
+        # if isinstance(optimizer, list):
+        #     for opt in optimizer:
+        #         opt.zero_grad()
+        # else:
+        #     optimizer.zero_grad()
+        optimizer.zero_grad()
         output = model(data)
         loss = F.nll_loss(output, target)
         # if args.algorithm == "sketch":
@@ -67,6 +67,34 @@ def train(args, model, train_loader, optimizer, epoch, rank=0):
         # else:
         #     print("----pre backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
         loss.backward()
+        # size_grad = 0
+        # size_grad_nonzero = 0
+        # if args.algorithm == "sparse":
+        #     for group in optimizer.param_groups:
+        #         for param in group["params"]:
+        #             if param.requires_grad:
+        #                 size_grad += param.grad.numel()
+        #                 size_grad_nonzero += param.grad.count_nonzero().item()
+        # logging.info("-----------after backward000: {}/{}".format(size_grad_nonzero, size_grad))
+        # if args.algorithm == "sparse":
+        #     for group in optimizer.param_groups:
+        #         for param in group["params"]:
+        #             # logging.info("-------hasattr(param, sketch_grad): {}".format(hasattr(param, "sketch_grad")))
+        #             # logging.info("-------hasattr(param, grad): {}".format(hasattr(param, "grad")))
+        #             if hasattr(param, "grad"):
+        #                 assert hasattr(param, "sketch_grad")
+        #                 param.grad.set_(param.sketch_grad)
+        #                 # logging.info("-----------why: {}".format(param.grad.count_nonzero().item()))
+        #                 #param.grad.zero_()
+        # size_grad = 0
+        # size_grad_nonzero = 0
+        # if args.algorithm == "sparse":
+        #     for group in optimizer.param_groups:
+        #         for param in group["params"]:
+        #             if param.requires_grad:
+        #                 size_grad += param.grad.numel()
+        #                 size_grad_nonzero += param.grad.count_nonzero().item()
+        # logging.info("-----------after backward: {}/{}".format(size_grad_nonzero, size_grad))
         # if args.algorithm == "sketch":
         #     print("----post backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][-1].grad[0:10]))
         #     for tensor in optimizer.param_groups[0]["params"]:
@@ -77,19 +105,29 @@ def train(args, model, train_loader, optimizer, epoch, rank=0):
         #     print("----post backward batch_idx {} in cuda:{}: newgrad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].newgrad))
         # else:
         #     print("----post backward batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][0].grad[0:10]))
-        if args.fuse_optimizer:
-            if isinstance(optimizer, list):
-                for opt in optimizer:
-                    opt.fuse_step()
-            else:
-                optimizer.fuse_step()
-        else:
-            if isinstance(optimizer, list):
-                for opt in optimizer:
-                    opt.step()
-            else:
-                optimizer.fuse_step()
-        # optimizer.fuse_step()
+        # if args.fuse_optimizer:
+        #     if isinstance(optimizer, list):
+        #         for opt in optimizer:
+        #             opt.fuse_step()
+        #     else:
+        #         optimizer.fuse_step()
+        # else:
+        #     if isinstance(optimizer, list):
+        #         for opt in optimizer:
+        #             opt.step()
+        #     else:
+        #         optimizer.step()
+        optimizer.step()
+        # size_grad = 0
+        # size_grad_nonzero = 0
+        # if args.algorithm == "sparse":
+        #     for group in optimizer.param_groups:
+        #         for param in group["params"]:
+        #             if param.requires_grad:
+        #                 size_grad += param.grad.numel()
+        #                 size_grad_nonzero += param.grad.count_nonzero().item()
+        # logging.info("-----------after step: {}/{}".format(size_grad_nonzero, size_grad))
+        # optimizer.step()
         # if args.algorithm == "sketch":
         #     print("----post optimizer.step batch_idx {} in cuda:{}: grad---{}.".format(batch_idx, rank, optimizer.param_groups[0]["params"][-1].grad[0:10]))
         #     for tensor in optimizer.param_groups[0]["params"]:
@@ -278,7 +316,7 @@ def main():
 
     model = Net().cuda()
     optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
-    optimizer1 = optim.Adadelta(model.parameters(), lr=args.lr+1)
+    # optimizer1 = optim.Adadelta(model.parameters(), lr=args.lr+1)
 
     if args.algorithm == "gradient_allreduce":
         from bagua.torch_api.algorithms import gradient_allreduce
@@ -335,6 +373,14 @@ def main():
     elif args.algorithm == "sketch":
         from bagua.torch_api.algorithms import sketch
         algorithm = sketch.SketchAlgorithm(optimizer)
+    elif args.algorithm == "sketch-max":
+        from sketch import SketchAlgorithm
+        # NOTE: may switch to Adadelta optimizer and try it out.
+        for m in model.modules():
+            if hasattr(m, "bias") and m.bias is not None:
+                m.bias.do_sketching = False
+        optimizer = optim.SGD(model.parameters(), lr=0.01)
+        algorithm = SketchAlgorithm(optimizer, c=100, r=10, k=100, lr=0.001)
     elif args.algorithm == "qsparse":
         # import qsparselocal
         # # from bagua.torch_api.algorithms import qsparselocal
@@ -351,25 +397,38 @@ def main():
             model.parameters(), lr=learning_rate, schedule = gap +1
         )
         algorithm = qsparselocal.QSparseLocalAlgorithm(optimizer)
+    elif args.algorithm == "signum":
+        import signum
+        signum_optimizer = signum.SignumOptimizer(model.parameters(), lr=args.lr)
+        algorithm = signum.SignumAlgorithm(signum_optimizer, False)
+    elif args.algorithm == "sparse":
+        import sparse
+        # optimizer = sparse.SketchedSGD(optim.SGD(model.parameters(), lr=args.lr))
+        optimizer = optim.SGD(model.parameters(), lr=0.01)
+        model = sparse.SketchedModel(model)
+        algorithm = sparse.SparseAlgorithm(optimizer=optimizer)
+        # from bagua.torch_api.algorithms import gradient_allreduce
+        # algorithm = gradient_allreduce.GradientAllReduceAlgorithm()
     else:
         raise NotImplementedError
 
     model = model.with_bagua(
-        [optimizer, optimizer1],
+        [optimizer], # [optimizer, optimizer1],
         algorithm,
         do_flatten=not args.fuse_optimizer,
     )
 
     if args.fuse_optimizer:
         optimizer = bagua.contrib.fuse_optimizer(optimizer)
-        optimizer1 = bagua.contrib.fuse_optimizer(optimizer1)
+        # optimizer1 = bagua.contrib.fuse_optimizer(optimizer1)
 
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
         if args.algorithm == "async":
             model.bagua_algorithm.resume(model)
 
-        train(args, model, train_loader, [optimizer, optimizer1], epoch, rank=bagua.get_rank())
+        # train(args, model, train_loader, [optimizer, optimizer1], epoch, rank=bagua.get_rank())
+        train(args, model, train_loader, optimizer, epoch, rank=bagua.get_rank())
 
         if args.algorithm == "async":
             model.bagua_algorithm.abort(model)
