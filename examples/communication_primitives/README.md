@@ -3,3 +3,5 @@ This script tests Bagua's low level communication primitives give the same resul
 ```bash
 python3 -m bagua.distributed.launch --nproc_per_node=4 main.py
 ```
+
+python -m bagua.distributed.launch --nproc_per_node=3 test.py

@@ -4,7 +4,7 @@ import torch
 import torch.distributed as dist
 import logging
 import bagua.torch_api as bagua
-
+import time
 
 def main():
     torch.set_printoptions(precision=20)
@@ -41,6 +41,70 @@ def main():
             ), "recv_tensor:{a}, recv_tensor_bagua:{b}".format(
                 a=recv_tensor, b=recv_tensor_bagua
             )
+def test():
+    torch.set_printoptions(precision=20)
+    parser = argparse.ArgumentParser(description="Communication Primitives Example")
+    parser.parse_args()
+
+    assert bagua.get_world_size() >= 1, "world size must be at least 2"
+
+    torch.cuda.set_device(bagua.get_local_rank())
+    bagua.init_process_group()
+
+    logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.ERROR)
+    if bagua.get_rank() == 0:
+        logging.getLogger().setLevel(logging.INFO)
+
+    comm = bagua.communication._get_default_group().get_global_communicator()
+
+    size = 1000000
+    print("rank: ", bagua.get_rank())
+    t = torch.rand(size).cuda()
+    nb = list(range(bagua.get_world_size()))
+    for index in range(10):
+        t = torch.rand(size + index).cuda()
+        start = time.time()
+        for n in nb:
+            if n == bagua.get_local_rank():
+                continue
+            if n < bagua.get_local_rank():
+                bagua.send(t, n)
+                bagua.recv(t, n)
+            else:
+                bagua.recv(t, n)
+                bagua.send(t, n)
+        end = time.time()
+        # if bagua.get_local_rank() == 1: print("Bagua: {}".format(end-start))
+        print("bagua rank: {}({}), time: {}.".format(bagua.get_rank(), index, end-start))
+
+        start = time.time()
+        for n in nb:
+            if n == bagua.get_local_rank():
+                continue
+            if n < bagua.get_local_rank():
+                torch.distributed.send(t, n)
+                torch.distributed.recv(t, n)
+            else:
+                torch.distributed.recv(t, n)
+                torch.distributed.send(t, n)
+        end = time.time()
+        # if bagua.get_local_rank() == 1: print("PYT: {}".format(end-start))
+        print("torch rank: {}({}), time: {}.".format(bagua.get_rank(), index, end-start))
+
+        # start = time.time()
+        # for n in nb:
+        #     if n == bagua.get_local_rank():
+        #         continue
+        #     if n < bagua.get_local_rank():
+        #         bagua.send(t, n, comm=comm)
+        #         bagua.recv(t, n, comm=comm)
+        #     else:
+        #         bagua.recv(t, n, comm=comm)
+        #         bagua.send(t, n, comm=comm)
+        # end = time.time()
+        # # if bagua.get_local_rank() == 1: print("Bagua: {}".format(end-start))
+        # print("bagua rank: {}({}), time: {}.".format(bagua.get_rank(), index, end-start))
 
 if __name__ == "__main__":
-    main()
+    # main()
+    test()
