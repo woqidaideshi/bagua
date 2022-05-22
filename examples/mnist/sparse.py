@@ -224,16 +224,13 @@ class SketchedSum:
                     # logging.info("---------------------_setGradVec before: {}-{}".format(p.grad.count_nonzero().item(), p.grad.numel()))
                     # p.grad.zero_()
                     # p.grad.add_(vec[startPos:startPos + size].reshape(shape))
+
                     # p.grad.copy_(vec[startPos:startPos + size].reshape(shape))
                     ver_grad = vec[startPos:startPos + size]
                     grad = p.grad.view(-1)
                     grad[ver_grad.nonzero()] = 0
                     grad.add_(ver_grad)
-                    # new_grad = vec[startPos:startPos + size].reshape(shape)
-                    # new_grad[new_grad.zero()]
                     startPos += size
-                    # logging.info("----------------{}=={}, nonzero: {}".format(new_grad.shape, p.grad.shape, new_grad.nonzero()))
-                    # p.grad[new_grad.nonzero()] = 0
                     p.grad.copy_(grad.reshape(shape))
                     # grad_nonzero += p.grad.count_nonzero().item()
                     # logging.info("---------------------_setGradVec after: {}-{}".format(p.grad.count_nonzero().item(), p.grad.numel()))
