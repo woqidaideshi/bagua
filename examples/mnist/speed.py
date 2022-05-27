@@ -30,6 +30,7 @@ class RelayAlgorithmImpl(AlgorithmImpl):
         peer_selection_mode: str = "all",
         communication_interval: int = 1,
         optimizer: Optimizer = None,
+        comm_mode: str = "bagua", # bagua, torch, torch_i
     ):
         """
         Implementation of the
@@ -74,38 +75,77 @@ class RelayAlgorithmImpl(AlgorithmImpl):
         self.m_send = torch.zeros(self.param_size, dtype=torch.float32).cuda()
         self.c_send = torch.ones(1, dtype=torch.float32).cuda()
         print("rank: ", bagua.get_rank())
-        self.t = torch.rand(1000000).cuda()
+        self.s = torch.rand(1000000).cuda()
+        self.r = torch.zeros(1000000).cuda()
         self.step = 0
+        self.comm_mode = comm_mode
     
     def speed(self):
         nb = list(range(bagua.get_world_size()))
-        start = time.time()
-        for n in nb:
-            if n == bagua.get_local_rank():
-                continue
-            if n < bagua.get_local_rank():
-                bagua.send(self.t, n)
-                bagua.recv(self.t, n)
-            else:
-                bagua.recv(self.t, n)
-                bagua.send(self.t, n)
-        end = time.time()
-        # if bagua.get_local_rank() == 1: print("Bagua: {}".format(end-start))
-        print("bagua rank: {}({}), time: {}.".format(bagua.get_rank(), self.step, end-start))
+        if self.comm_mode == "bagua":
+            torch.cuda.synchronize()
+            start = time.time()
+            for n in nb:
+                if n == bagua.get_local_rank():
+                    continue
+                if n < bagua.get_local_rank():
+                    bagua.send(self.s, n)
+                    bagua.recv(self.r, n)
+                else:
+                    bagua.recv(self.r, n)
+                    bagua.send(self.s, n)
+            torch.cuda.synchronize()
+            end = time.time()
+            # if bagua.get_local_rank() == 1: print("Bagua: {}".format(end-start))
+            print("bagua rank: {}({}), time: {}.".format(bagua.get_rank(), self.step, end-start))
+        elif self.comm_mode == "torch":
+            torch.cuda.synchronize()
+            start = time.time()
+            for n in nb:
+                if n == bagua.get_local_rank():
+                    continue
+                if n < bagua.get_local_rank():
+                    torch.distributed.send(self.s, n)
+                    torch.distributed.recv(self.r, n)
+                else:
+                    torch.distributed.recv(self.r, n)
+                    torch.distributed.send(self.s, n)
+            torch.cuda.synchronize()
+            end = time.time()
+            # if bagua.get_local_rank() == 1: print("PYT: {}".format(end-start))
+            print("torch rank: {}({}), time: {}.".format(bagua.get_rank(), self.step, end-start))
+        else:
+            torch.cuda.synchronize()
+            start = time.time()
+            for n in nb:
+                if n == bagua.get_local_rank():
+                    continue
+                if n < bagua.get_local_rank():
+                    torch.distributed.isend(self.s, n)
+                    torch.distributed.irecv(self.r, n)
+                else:
+                    torch.distributed.irecv(self.r, n)
+                    torch.distributed.isend(self.s, n)
+            torch.cuda.synchronize()
+            end = time.time()
+            # if bagua.get_local_rank() == 1: print("PYT: {}".format(end-start))
+            print("torch_i rank: {}({}), time: {}.".format(bagua.get_rank(), self.step, end-start))
 
-        start = time.time()
-        for n in nb:
-            if n == bagua.get_local_rank():
-                continue
-            if n < bagua.get_local_rank():
-                torch.distributed.send(self.t, n)
-                torch.distributed.recv(self.t, n)
-            else:
-                torch.distributed.recv(self.t, n)
-                torch.distributed.send(self.t, n)
-        end = time.time()
-        # if bagua.get_local_rank() == 1: print("PYT: {}".format(end-start))
-        print("torch rank: {}({}), time: {}.".format(bagua.get_rank(), self.step, end-start))
+        # torch.cuda.synchronize()
+        # start = time.time()
+        # for n in nb:
+        #     if n == bagua.get_local_rank():
+        #         continue
+        #     if n < bagua.get_local_rank():
+        #         torch.distributed.send(self.t, n)
+        #         torch.distributed.recv(self.t, n)
+        #     else:
+        #         torch.distributed.recv(self.t, n)
+        #         torch.distributed.send(self.t, n)
+        # torch.cuda.synchronize()
+        # end = time.time()
+        # # if bagua.get_local_rank() == 1: print("PYT: {}".format(end-start))
+        # print("torch rank: {}({}), time: {}.".format(bagua.get_rank(), self.step, end-start))
         self.step += 1
 
     def _should_communicate(self, bagua_ddp: BaguaDistributedDataParallel) -> bool:
@@ -152,7 +192,7 @@ class RelayAlgorithmImpl(AlgorithmImpl):
     def init_post_optimizer_step_hook(self, bagua_ddp: BaguaDistributedDataParallel):
         def hook(optimizer: torch.optim.Optimizer):
             self.speed()
-            pass
+            return
 
             def pack(tensors):
                 """Packs a list of tensors into one buffer for sending to other workers"""
@@ -252,6 +292,7 @@ class RelayAlgorithm(Algorithm):
         peer_selection_mode: str = "all",
         communication_interval: int = 1,
         optimizer: Optimizer = None,
+        comm_mode: str = "bagua", # bagua, torch, torch_i
     ):
         """
         Create an instance of the
@@ -270,6 +311,7 @@ class RelayAlgorithm(Algorithm):
         self.peer_selection_mode = peer_selection_mode
         self.communication_interval = communication_interval
         self.optimizer = optimizer
+        self.comm_mode = comm_mode
 
     def reify(self, process_group: BaguaProcessGroup) -> RelayAlgorithmImpl:
         return RelayAlgorithmImpl(
@@ -277,7 +319,8 @@ class RelayAlgorithm(Algorithm):
             hierarchical=self.hierarchical,
             peer_selection_mode=self.peer_selection_mode,
             communication_interval=self.communication_interval,
-            optimizer=self.optimizer
+            optimizer=self.optimizer,
+            comm_mode=self.comm_mode
         )
 
 def main():
@@ -288,9 +331,10 @@ def main():
 
     model = torch.nn.Sequential(torch.nn.Linear(1000, 1000),torch.nn.Linear(1000, 1)).cuda()
 
+    comm_mode = "torch_i"
     if USE_RELAY:
         optimizer = optim.SGD(model.parameters(), lr=0.01)
-        algorithm = RelayAlgorithm(optimizer=optimizer)
+        algorithm = RelayAlgorithm(optimizer=optimizer, comm_mode=comm_mode)
     else:
         optimizer = optim.SGD(model.parameters(), lr=0.01)
         algorithm = gradient_allreduce.GradientAllReduceAlgorithm()
@@ -306,6 +350,9 @@ def main():
     X = torch.randn(1000, 1000).cuda()
     y = torch.zeros(1000, 1).cuda()
 
+    torch.cuda.synchronize()
+    epochs_start = time.time()
+    epochs = 10000
     for epoch in range(1, 10000):
         optimizer.zero_grad()
         output = model(X)
@@ -313,6 +360,9 @@ def main():
         loss.backward()
         optimizer.step()
         if bagua.get_local_rank() == 0: logging.info(f"it {epoch}, loss: {loss.item():.6f}")
+    torch.cuda.synchronize()
+    epochs_end = time.time()
+    print("rank: {}, communication mode: {}, time for {} epochs: {}".format(bagua.get_local_rank(), comm_mode, epochs, epochs_end-epochs_start))
 
 
 if __name__ == "__main__":
