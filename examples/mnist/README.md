@@ -20,7 +20,7 @@ python -m bagua.distributed.launch --nproc_per_node=3 main.py --algorithm qspars
 
 python -m bagua.distributed.launch --nproc_per_node=4 relaysum.py
 
-python -m bagua.distributed.launch --nproc_per_node=2 main.py --algorithm sparse --lr 0.001 > /dev/null
+python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparse > /dev/null
 
 python -m bagua.distributed.launch --nproc_per_node=2 main.py --algorithm signum > /dev/null
 
@@ -28,5 +28,21 @@ python -m bagua.distributed.launch --nproc_per_node=2 main.py --algorithm sketch
 
 python -m bagua.distributed.launch --nproc_per_node=2 main-max.py --algorithm sketch > /dev/null
 
+python -m bagua.distributed.launch --nproc_per_node=2 main_mod.py --algorithm qsparselocal > /dev/null
 
 python -m bagua.distributed.launch --nproc_per_node=4 speed.py
+
+python -m bagua.distributed.launch --nproc_per_node=2 main_marina.py --algorithm marina > /dev/null
+
+python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm marina --lr 0.05 > /dev/null
+
+
+python -m bagua.distributed.launch --nproc_per_node=4 mnist_run.py --algorithm relay > /dev/null
+
+python -m bagua.distributed.launch --nproc_per_node=4 cifar_run.py --algorithm relay > /dev/null
+
+python -m bagua.distributed.launch --nproc_per_node=4 cifar_run.py --algorithm allreduce > /dev/null
+
+python -m bagua.distributed.launch --nproc_per_node=4 cifar_run.py --algorithm marina --lr 0.05 > /dev/null
+
+python -m bagua.distributed.launch --nproc_per_node=1 test_fused_optimizer.py

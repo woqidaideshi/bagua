@@ -406,9 +406,20 @@ def main():
         # optimizer = sparse.SketchedSGD(optim.SGD(model.parameters(), lr=args.lr))
         optimizer = optim.SGD(model.parameters(), lr=0.01)
         model = sparse.SketchedModel(model)
-        algorithm = sparse.SparseAlgorithm(optimizer=optimizer)
+        algorithm = sparse.SparseAlgorithm(optimizer=optimizer, c=1000, r=10, k=1000)
         # from bagua.torch_api.algorithms import gradient_allreduce
         # algorithm = gradient_allreduce.GradientAllReduceAlgorithm()
+    elif args.algorithm == "marina":
+        from marina import MarinaAlgorithm
+        from marina import MarinaOptimizer
+
+        optimizer = MarinaOptimizer(
+            model.parameters(), lr=args.lr
+        )
+        algorithm = MarinaAlgorithm(optimizer)
+    elif args.algorithm == "test":
+        from gradient_allreduce import GradientAllReduceAlgorithm
+        algorithm = GradientAllReduceAlgorithm()
     else:
         raise NotImplementedError
 

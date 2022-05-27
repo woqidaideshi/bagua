@@ -236,13 +236,13 @@ class SketchedSum:
                     # logging.info("---------------------_setGradVec after: {}-{}".format(p.grad.count_nonzero().item(), p.grad.numel()))
         # logging.info("------------grad_nonzero_old/grad_nonzero={}/{}, vec={}".format(grad_nonzero_old, grad_nonzero, vec.count_nonzero().item()))
         
-        size_grad = 0
-        size_grad_nonzero = 0
-        for group in self.opt.param_groups:
-            for param in group["params"]:
-                if param.requires_grad:
-                    size_grad += param.grad.numel()
-                    size_grad_nonzero += param.grad.count_nonzero().item()
+        # size_grad = 0
+        # size_grad_nonzero = 0
+        # for group in self.opt.param_groups:
+        #     for param in group["params"]:
+        #         if param.requires_grad:
+        #             size_grad += param.grad.numel()
+        #             size_grad_nonzero += param.grad.count_nonzero().item()
         # logging.info("-----------_setGradVec-grad/grad_nonzero={}/{}".format(size_grad, size_grad_nonzero))
 
     def encode(self):
