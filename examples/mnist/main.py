@@ -276,7 +276,7 @@ def main():
     logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.ERROR)
     if bagua.get_rank() == 0:
         logging.getLogger().setLevel(logging.INFO)
-    # logging.getLogger().setLevel(logging.INFO)
+    logging.getLogger().setLevel(logging.INFO)
     logging.info("----main start time: {} (rank {}).".format(start.strftime("%Y-%m-%d %H:%M:%S.%f"), bagua.get_rank()))
 
     train_kwargs = {"batch_size": args.batch_size}
@@ -410,8 +410,7 @@ def main():
         # from bagua.torch_api.algorithms import gradient_allreduce
         # algorithm = gradient_allreduce.GradientAllReduceAlgorithm()
     elif args.algorithm == "marina":
-        from marina import MarinaAlgorithm
-        from marina import MarinaOptimizer
+        from marina import MarinaAlgorithm, MarinaOptimizer
 
         optimizer = MarinaOptimizer(
             model.parameters(), lr=args.lr
@@ -420,6 +419,20 @@ def main():
     elif args.algorithm == "test":
         from gradient_allreduce import GradientAllReduceAlgorithm
         algorithm = GradientAllReduceAlgorithm()
+    elif args.algorithm == "gradient_allreduce_sgd":
+        from bagua.torch_api.algorithms import gradient_allreduce
+        optimizer = optim.SGD(model.parameters(), lr=args.lr)
+        algorithm = gradient_allreduce.GradientAllReduceAlgorithm()
+    elif args.algorithm == "test_simple":
+        from gradient_allreduce import GradientAllReduceAlgorithm, SimpleOptimizer
+        optimizer = SimpleOptimizer(model.parameters(), lr=args.lr)
+        algorithm = GradientAllReduceAlgorithm()
+    elif args.algorithm == "sparsepy-simple":
+        from sparsepy import sparsepy_simple
+        algorithm = sparsepy_simple.SparsepyAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparsepy":
+        from sparsepy import sparsepy
+        algorithm = sparsepy.SparsepyAlgorithm(optimizer=optimizer)
     else:
         raise NotImplementedError
 

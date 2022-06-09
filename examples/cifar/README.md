@@ -10,3 +10,12 @@ python -m bagua.distributed.launch --nproc_per_node=2 main_yafen.py --algorithm 
 
 
 python main_origin.py
+
+
+
+sparse:
+python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm gradient_allreduce --lr 0.05 > /dev/null
+
+python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparsepy --lr 0.1 > /dev/null
+
+python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparsepy-simple --lr 0.05 > /dev/null

@@ -196,7 +196,6 @@ def main():
     )
 
     args = parser.parse_args()
-    os.environ['CUDA_VISIBLE_DEVICES'] = '2,3'
     print("set_deterministic:", args.set_deterministic)
     if args.set_deterministic:
         print("set_deterministic: True")

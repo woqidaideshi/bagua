@@ -63,6 +63,27 @@ def get_optimizer_algorithm(model, args, optimizer = None):
     elif args.algorithm == "gradient_allreduce_sketch":
         from bagua.torch_api.algorithms import gradient_allreduce
         algorithm = gradient_allreduce.GradientAllReduceSketchAlgorithm(optimizer)
+    elif args.algorithm == "sparsepy":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparsepy
+        algorithm = sparsepy.SparsepyAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparsepy-simple":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparsepy_simple
+        algorithm = sparsepy_simple.SparsepyAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "test":
+        import sys
+        sys.path.append("../mnist")
+        from gradient_allreduce import GradientAllReduceAlgorithm
+        algorithm = GradientAllReduceAlgorithm()
+    elif args.algorithm == "test_simple":
+        import sys
+        sys.path.append("../mnist")
+        from gradient_allreduce import GradientAllReduceAlgorithm, SimpleOptimizer
+        optimizer = SimpleOptimizer(model.parameters(), lr=args.lr)
+        algorithm = GradientAllReduceAlgorithm()
     else:
         raise NotImplementedError
     return (optimizer, algorithm)
