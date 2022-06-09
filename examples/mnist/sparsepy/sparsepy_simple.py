@@ -126,7 +126,7 @@ class SparsepyAlgorithmImpl(AlgorithmImpl):
             bagua.broadcast(self.tensor_unpack, 0)
             if self.rank != 0:
                 unpack()
-            logger.info("----------------rank: {} hook end.".format(self.rank))
+            logging.info("----------------rank: {} hook end.".format(self.rank))
         return hook
     
     def init_post_optimizer_step_hook(self, bagua_ddp: BaguaDistributedDataParallel):

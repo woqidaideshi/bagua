@@ -6,8 +6,10 @@ from bagua.torch_api.algorithms.base import Algorithm, AlgorithmImpl
 from bagua.torch_api.communication import BaguaProcessGroup
 from bagua.torch_api.tensor import BaguaTensor
 from torch.optim.optimizer import Optimizer
+import bagua.torch_api as bagua
 import torch
 from typing import List, Tuple
+import logging
 
 class SimpleOptimizer(Optimizer):
     def __init__(
@@ -30,12 +32,15 @@ class SimpleOptimizer(Optimizer):
             with torch.enable_grad():
                 loss = closure()
 
+        nonzero = 0
         for group in self.param_groups:
 
             lr = group["lr"]
 
             for param in group["params"]:
                 param.data.add_(param.grad, alpha=-lr)
+                nonzero += param.grad.count_nonzero().item()
+        logging.info("-----rank: {} in SimpleOptimizer, grad nonzero size: {}.".format(bagua.get_rank(), nonzero))
 
         return loss
 

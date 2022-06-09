@@ -68,6 +68,14 @@ def get_optimizer_algorithm(model, args, optimizer = None):
         sys.path.append("../mnist/sparsepy")
         import sparsepy
         algorithm = sparsepy.SparsepyAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparsepy-test":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparsepy
+        sys.path.append("../mnist")
+        from gradient_allreduce import SimpleOptimizer
+        optimizer = SimpleOptimizer(model.parameters(), lr=args.lr)
+        algorithm = sparsepy.SparsepyAlgorithm(optimizer=optimizer)
     elif args.algorithm == "sparsepy-simple":
         import sys
         sys.path.append("../mnist/sparsepy")

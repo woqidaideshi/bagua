@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from asyncio.log import logger
 from cmath import log
 import logging
 from operator import index
@@ -72,7 +71,7 @@ class SparsepyAlgorithmImpl(AlgorithmImpl):
         self.send_messages = torch.zeros(self.topK, dtype=torch.float32).cuda()
         self.send_indexes = torch.zeros(self.topK, dtype=torch.int64).cuda()
         self.tensors_buffer = torch.zeros(self.param_size, dtype=torch.float32).cuda()
-        logger.info("---------param_size: {}, topK: {}".format(self.param_size, self.topK))
+        logging.info("---------param_size: {}, topK: {}".format(self.param_size, self.topK))
 
     def _should_communicate(self, bagua_ddp: BaguaDistributedDataParallel) -> bool:
         cur_step = bagua_ddp.bagua_train_step_counter - 1
@@ -139,7 +138,7 @@ class SparsepyAlgorithmImpl(AlgorithmImpl):
                 nonzero1 = 0
                 for tensor in self.tensors:
                     nonzero1 += tensor.count_nonzero().item()
-                logger.info("-----rank: {}, grad nonzero size: {}, self.tensors nonzero size: {}.".format(self.rank, nonzero, nonzero1))
+                logging.info("-----rank: {}, grad nonzero size: {}, self.tensors nonzero size: {}.".format(self.rank, nonzero, nonzero1))
                 
             pack()
             bagua.gather(self.send_indexes, self.recv_indexes, dst=0)
