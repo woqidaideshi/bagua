@@ -5,11 +5,12 @@ import torch.distributed as dist
 import logging
 import bagua.torch_api as bagua
 import time
+import sys
 
 def main():
+    print("rank: {} in func: {}.".format(bagua.get_rank(), sys._getframe().f_code.co_name))
+    
     torch.set_printoptions(precision=20)
-    parser = argparse.ArgumentParser(description="Communication Primitives Example")
-    parser.parse_args()
 
     assert bagua.get_world_size() >= 1, "world size must be at least 2"
 
@@ -41,11 +42,10 @@ def main():
             ), "recv_tensor:{a}, recv_tensor_bagua:{b}".format(
                 a=recv_tensor, b=recv_tensor_bagua
             )
-def test():
-    torch.set_printoptions(precision=20)
-    parser = argparse.ArgumentParser(description="Communication Primitives Example")
-    parser.parse_args()
+def test(iwait=""):
+    print("rank: {} in func: {}_{}.".format(bagua.get_rank(), sys._getframe().f_code.co_name, iwait))
 
+    torch.set_printoptions(precision=20)
     assert bagua.get_world_size() >= 1, "world size must be at least 2"
 
     rank = bagua.get_local_rank()
@@ -58,7 +58,6 @@ def test():
 
     comm = bagua.communication._get_default_group().get_global_communicator()
 
-    print("rank: ", bagua.get_rank())
     s = torch.ones(size).cuda()
     r = torch.zeros(size).cuda()
     nb = list(range(bagua.get_world_size()))
@@ -70,22 +69,18 @@ def test():
         for n in nb:
             if n == rank:
                 continue
+            r.zero_()
             if n < rank:
                 bagua.send(s, n)
                 bagua.recv(r, n)
-                assert torch.equal(
-                    r, s
-                ), "rank: {}, recv_tensor_bagua:{a}, send_tensor_bagua:{b}".format(
-                    n, a=r, b=s
-                )
             else:
                 bagua.recv(r, n)
                 bagua.send(s, n)
-                assert torch.equal(
-                    r, s
-                ), "rank: {}, recv_tensor_bagua:{a}, send_tensor_bagua:{b}".format(
-                    n, a=r, b=s
-                )
+            assert torch.equal(
+                r, s
+            ), "rank: {}, recv_tensor_bagua:{a}, send_tensor_bagua:{b}".format(
+                n, a=r, b=s
+            )
         end = time.time()
         duration = end - start
         time_bagua += duration
@@ -95,60 +90,103 @@ def test():
         for n in nb:
             if n == rank:
                 continue
+            r.zero_()
             if n < rank:
                 torch.distributed.send(s, n)
                 torch.distributed.recv(r, n)
-                assert torch.equal(
-                    r, s
-                ), "rank: {}, recv_tensor:{a}, send_tensor:{b}".format(
-                    n, a=r, b=s
-                )
             else:
                 torch.distributed.recv(r, n)
                 torch.distributed.send(s, n)
-                assert torch.equal(
-                    r, s
-                ), "rank: {}, recv_tensor:{a}, send_tensor:{b}".format(
-                    n, a=r, b=s
-                )
+            assert torch.equal(
+                r, s
+            ), "rank: {}, recv_tensor:{a}, send_tensor:{b}".format(
+                n, a=r, b=s
+            )
         end = time.time()
         duration = end - start
         time_torch += duration
         print("torch rank: {}({}), time: {}.".format(bagua.get_rank(), index, duration))
 
-        start = time.time()
-        for n in nb:
-            if n == rank:
-                continue
-            if n < rank:
-                torch.distributed.isend(s, n)
-                torch.distributed.irecv(r, n)
+        if iwait == "iwaitlist":
+            req_list = []
+            start = time.time()
+            for n in nb:
+                if n == rank:
+                    continue
+                r.zero_()
+                if n < rank:
+                    req = torch.distributed.isend(s, n)
+                    req_list.append(req)
+                    req = torch.distributed.irecv(r, n)
+                    req_list.append(req)
+                else:
+                    req = torch.distributed.irecv(r, n)
+                    req_list.append(req)
+                    req = torch.distributed.isend(s, n)
+                    req_list.append(req)
                 assert torch.equal(
                     r, s
                 ), "rank: {}, irecv_tensor:{a}, isend_tensor:{b}".format(
                     n, a=r, b=s
                 )
-            else:
-                torch.distributed.irecv(r, n)
-                torch.distributed.isend(s, n)
+            for req in req_list:
+                req.wait()
+            end = time.time()
+            duration = end - start
+            time_torch_i += duration
+        elif iwait == "iwait":
+            start = time.time()
+            for n in nb:
+                if n == rank:
+                    continue
+                r.zero_()
+                if n < rank:
+                    req = torch.distributed.isend(s, n)
+                    req.wait()
+                    req = torch.distributed.irecv(r, n)
+                    req.wait()
+                else:
+                    req = torch.distributed.irecv(r, n)
+                    req.wait()
+                    req = torch.distributed.isend(s, n)
+                    req.wait()
                 assert torch.equal(
                     r, s
                 ), "rank: {}, irecv_tensor:{a}, isend_tensor:{b}".format(
                     n, a=r, b=s
                 )
-        end = time.time()
-        duration = end - start
-        time_torch_i += duration
+            end = time.time()
+            duration = end - start
+            time_torch_i += duration
+        else:
+            start = time.time()
+            for n in nb:
+                if n == rank:
+                    continue
+                r.zero_()
+                if n < rank:
+                    torch.distributed.isend(s, n)
+                    torch.distributed.irecv(r, n)
+                else:
+                    torch.distributed.irecv(r, n)
+                    torch.distributed.isend(s, n)
+                assert torch.equal(
+                    r, s
+                ), "rank: {}, irecv_tensor:{a}, isend_tensor:{b}".format(
+                    n, a=r, b=s
+                )
+            end = time.time()
+            duration = end - start
+            time_torch_i += duration
         print("torch rank isend/irecv: {}({}), time: {}.".format(bagua.get_rank(), index, duration))
 
     print("\nrank:{}, communicate for {} times, size: {}.".format(rank, count, size))
     print("rank: {}, bagua: {}, torch: {}, torch_i: {}".format(rank, time_bagua, time_torch, time_torch_i))
 
+def test_synchronize(iwait=""):
+    print("rank: {} in func: {}_{}.".format(bagua.get_rank(), sys._getframe().f_code.co_name, iwait))
 
-def test_synchronize():
     torch.set_printoptions(precision=20)
-    parser = argparse.ArgumentParser(description="Communication Primitives Example")
-    parser.parse_args()
 
     assert bagua.get_world_size() >= 1, "world size must be at least 2"
 
@@ -175,6 +213,7 @@ def test_synchronize():
         for n in nb:
             if n == rank:
                 continue
+            r.zero_()
             if n < rank:
                 bagua.send(s, n)
                 bagua.recv(r, n)
@@ -192,6 +231,7 @@ def test_synchronize():
         for n in nb:
             if n == rank:
                 continue
+            r.zero_()
             if n < rank:
                 torch.distributed.send(s, n)
                 torch.distributed.recv(r, n)
@@ -204,29 +244,214 @@ def test_synchronize():
         time_torch += duration
         print("torch rank: {}({}), time: {}.".format(bagua.get_rank(), index, duration))
 
+        if iwait == "iwaitlist":
+            req_list = []
+            torch.cuda.synchronize()
+            start = time.time()
+            for n in nb:
+                if n == rank:
+                    continue
+                r.zero_()
+                if n < rank:
+                    req = torch.distributed.isend(s, n)
+                    req_list.append(req)
+                    req = torch.distributed.irecv(r, n)
+                    req_list.append(req)
+                else:
+                    req = torch.distributed.irecv(r, n)
+                    req_list.append(req)
+                    req = torch.distributed.isend(s, n)
+                    req_list.append(req)
+            for req in req_list:
+                req.wait()
+            torch.cuda.synchronize()
+            end = time.time()
+            duration = end - start
+            time_torch_i += duration
+        elif iwait == "iwait":
+            torch.cuda.synchronize()
+            start = time.time()
+            for n in nb:
+                if n == rank:
+                    continue
+                r.zero_()
+                if n < rank:
+                    req = torch.distributed.isend(s, n)
+                    req.wait()
+                    req = torch.distributed.irecv(r, n)
+                    req.wait()
+                else:
+                    req = torch.distributed.irecv(r, n)
+                    req.wait()
+                    req = torch.distributed.isend(s, n)
+                    req.wait()
+            torch.cuda.synchronize()
+            end = time.time()
+            duration = end - start
+            time_torch_i += duration
+        else:
+            torch.cuda.synchronize()
+            start = time.time()
+            for n in nb:
+                if n == rank:
+                    continue
+                r.zero_()
+                if n < rank:
+                    torch.distributed.isend(s, n)
+                    torch.distributed.irecv(r, n)
+                else:
+                    torch.distributed.irecv(r, n)
+                    torch.distributed.isend(s, n)
+            torch.cuda.synchronize()
+            end = time.time()
+            duration = end - start
+            time_torch_i += duration
+        print("torch rank isend/irecv: {}({}), time: {}.".format(bagua.get_rank(), index, duration))
+    print("\nrank:{}, communicate for {} times, size: {}.".format(rank, count, size))
+    print("rank: {}, bagua: {}, torch: {}, torch_i: {}".format(rank, time_bagua, time_torch, time_torch_i))
+
+
+def test_synchronize_event(iwait=""):
+    print("rank: {} in func: {}_{}.".format(bagua.get_rank(), sys._getframe().f_code.co_name, iwait))
+
+    torch.set_printoptions(precision=20)
+
+    assert bagua.get_world_size() >= 1, "world size must be at least 2"
+
+    rank = bagua.get_local_rank()
+    torch.cuda.set_device(rank)
+    bagua.init_process_group()
+
+    logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.ERROR)
+    if bagua.get_rank() == 0:
+        logging.getLogger().setLevel(logging.INFO)
+
+    comm = bagua.communication._get_default_group().get_global_communicator()
+
+    print("rank: ", bagua.get_rank())
+    s = torch.ones(size).cuda()
+    r = torch.zeros(size).cuda()
+    nb = list(range(bagua.get_world_size()))
+    time_bagua = 0
+    time_torch = 0
+    time_torch_i = 0
+    for index in range(count):
         torch.cuda.synchronize()
-        start = time.time()
+        start = torch.cuda.Event(enable_timing=True)
+        end = torch.cuda.Event(enable_timing=True)
+        start.record()
         for n in nb:
             if n == rank:
                 continue
+            r.zero_()
             if n < rank:
-                torch.distributed.isend(s, n)
-                torch.distributed.irecv(r, n)
+                bagua.send(s, n)
+                bagua.recv(r, n)
             else:
-                torch.distributed.irecv(r, n)
-                torch.distributed.isend(s, n)
+                bagua.recv(r, n)
+                bagua.send(s, n)
+        end.record()
         torch.cuda.synchronize()
-        end = time.time()
-        duration = end - start
-        time_torch_i += duration
+        duration = start.elapsed_time(end)
+        time_bagua += duration
+        print("bagua rank: {}({}), time: {}.".format(bagua.get_rank(), index, duration))
+
+        torch.cuda.synchronize()
+        start = torch.cuda.Event(enable_timing=True)
+        end = torch.cuda.Event(enable_timing=True)
+        start.record()
+        for n in nb:
+            if n == rank:
+                continue
+            r.zero_()
+            if n < rank:
+                torch.distributed.send(s, n)
+                torch.distributed.recv(r, n)
+            else:
+                torch.distributed.recv(r, n)
+                torch.distributed.send(s, n)
+        end.record()
+        torch.cuda.synchronize()
+        duration = start.elapsed_time(end)
+        time_torch += duration
+        print("torch rank: {}({}), time: {}.".format(bagua.get_rank(), index, duration))
+
+        if iwait == "iwaitlist":
+            req_list = []
+            torch.cuda.synchronize()
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            start.record()
+            for n in nb:
+                if n == rank:
+                    continue
+                r.zero_()
+                if n < rank:
+                    req = torch.distributed.isend(s, n)
+                    req_list.append(req)
+                    req = torch.distributed.irecv(r, n)
+                    req_list.append(req)
+                else:
+                    req = torch.distributed.irecv(r, n)
+                    req_list.append(req)
+                    req = torch.distributed.isend(s, n)
+                    req_list.append(req)
+            for req in req_list:
+                req.wait()
+            end.record()
+            torch.cuda.synchronize()
+            duration = start.elapsed_time(end)
+            time_torch_i += duration
+        elif iwait == "iwait":
+            torch.cuda.synchronize()
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            start.record()
+            for n in nb:
+                if n == rank:
+                    continue
+                r.zero_()
+                if n < rank:
+                    req = torch.distributed.isend(s, n)
+                    req.wait()
+                    req = torch.distributed.irecv(r, n)
+                    req.wait()
+                else:
+                    req = torch.distributed.irecv(r, n)
+                    req.wait()
+                    req = torch.distributed.isend(s, n)
+                    req.wait()
+            end.record()
+            torch.cuda.synchronize()
+            duration = start.elapsed_time(end)
+            time_torch_i += duration
+        else:
+            torch.cuda.synchronize()
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            start.record()
+            for n in nb:
+                if n == rank:
+                    continue
+                r.zero_()
+                if n < rank:
+                    torch.distributed.isend(s, n)
+                    torch.distributed.irecv(r, n)
+                else:
+                    torch.distributed.irecv(r, n)
+                    torch.distributed.isend(s, n)
+            end.record()
+            torch.cuda.synchronize()
+            duration = start.elapsed_time(end)
+            time_torch_i += duration
         print("torch rank isend/irecv: {}({}), time: {}.".format(bagua.get_rank(), index, duration))
     print("\nrank:{}, communicate for {} times, size: {}.".format(rank, count, size))
     print("rank: {}, bagua: {}, torch: {}, torch_i: {}".format(rank, time_bagua, time_torch, time_torch_i))
 
 def test_error():
+    print("rank: {} in func: {}.".format(bagua.get_rank(), sys._getframe().f_code.co_name))
+
     torch.set_printoptions(precision=20)
-    parser = argparse.ArgumentParser(description="Communication Primitives Example")
-    parser.parse_args()
 
     assert bagua.get_world_size() >= 1, "world size must be at least 2"
 
@@ -283,11 +508,15 @@ def test_error():
             if n == rank:
                 continue
             if n < rank:
-                torch.distributed.isend(s, n)
-                torch.distributed.irecv(r, n)
+                req = torch.distributed.isend(s, n)
+                req.wait()
+                req = torch.distributed.irecv(r, n)
+                req.wait()
             else:
-                torch.distributed.irecv(r, n)
-                torch.distributed.isend(s, n)
+                req = torch.distributed.irecv(r, n)
+                req.wait()
+                req = torch.distributed.isend(s, n)
+                req.wait()
         end = time.time()
         duration = end - start
         time_torch_i += duration
@@ -299,9 +528,47 @@ if __name__ == "__main__":
     # main()
     count = 100000
     size = 1000000
-    print("-----------------test--------")
-    test()
+    import argparse
+    parser = argparse.ArgumentParser(description="send/recv time")
+    parser.add_argument("--func",
+                        default="test",
+                        help="chose a func",
+                        type=str,
+                        )
+    args = parser.parse_args()
+
+    func_list = {
+        "test": (test, ""),
+        "test_iwait": (test, "iwait"),
+        "test_iwaitlist": (test, "iwaitlist"),
+        "test_synchronize": (test_synchronize, ""),
+        "test_synchronize_iwait": (test_synchronize, "iwait"),
+        "test_synchronize_iwaitlist": (test_synchronize, "iwaitlist"),
+        "test_synchronize_event": (test_synchronize_event, ""),
+        "test_synchronize_event_iwait": (test_synchronize_event, "iwait"),
+        "test_synchronize_event_iwaitlist": (test_synchronize_event, "iwaitlist")
+    }
+
+    chose = args.func.strip()
+    
+    if chose in func_list.keys():
+        func_info = func_list[chose]
+        print("--------------------func chosein: {}.".format(chose))
+        func_info[0](iwait=func_info[1])
+    else:
+        print("-------unrecognized arguments for --func: ", chose)
+
+    # print("-----------------test--------")
+    # test()
+    # print("-----------------test-iwait--------")
+    # test_iwait()
+    # print("-----------------test-iwaitlist--------")
+    # test_iwaitlist()
     # print("-----------------test_synchronize--------")
     # test_synchronize()
+    # print("-----------------test_synchronize-iwait--------")
+    # test_synchronize_iwait()
+    # print("-----------------test_synchronize-iwaitlist--------")
+    # test_synchronize_iwaitlist()
     # print("-----------------test_error--------")
     # test_error()
