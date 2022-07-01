@@ -22,3 +22,7 @@ python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparse
 
 python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm test --lr 0.05 > /dev/null
 python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm test_simple --lr 0.05 > /dev/null
+
+python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparsepy-allgather --lr 0.05 > /dev/null
+
+python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparsepy-allgather-full --lr 0.05 > /dev/null

@@ -68,6 +68,16 @@ def get_optimizer_algorithm(model, args, optimizer = None):
         sys.path.append("../mnist/sparsepy")
         import sparsepy
         algorithm = sparsepy.SparsepyAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparsepy-allgather":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparsepy_allgather
+        algorithm = sparsepy_allgather.SparsepyAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparsepy-allgather-full":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparsepy_allgather_full
+        algorithm = sparsepy_allgather_full.SparsepyAlgorithm(optimizer=optimizer)
     elif args.algorithm == "sparsepy-test":
         import sys
         sys.path.append("../mnist/sparsepy")

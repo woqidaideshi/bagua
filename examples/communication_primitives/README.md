@@ -18,3 +18,5 @@ python -m bagua.distributed.launch --nproc_per_node=4 test.py --func test_iwait
 python -m bagua.distributed.launch --nproc_per_node=4 test.py > test_synchronize-100000-4.0608.log
 
 python -m bagua.distributed.launch --nproc_per_node=4 test.py --func test_iwait > ./logs/test-test_iwait-0609.log
+
+python test-bagua.py > ./logs/test-bagua-$(date +%m%d).1.log

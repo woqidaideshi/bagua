@@ -433,6 +433,12 @@ def main():
     elif args.algorithm == "sparsepy":
         from sparsepy import sparsepy
         algorithm = sparsepy.SparsepyAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparsepy-allgather":
+        from sparsepy import sparsepy_allgather
+        algorithm = sparsepy_allgather.SparsepyAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparsepy-allgather-full":
+        from sparsepy import sparsepy_allgather_full
+        algorithm = sparsepy_allgather_full.SparsepyAlgorithm(optimizer=optimizer)
     else:
         raise NotImplementedError
 

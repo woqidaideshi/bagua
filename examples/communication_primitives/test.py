@@ -200,7 +200,6 @@ def test_synchronize(iwait=""):
 
     comm = bagua.communication._get_default_group().get_global_communicator()
 
-    print("rank: ", bagua.get_rank())
     s = torch.ones(size).cuda()
     r = torch.zeros(size).cuda()
     nb = list(range(bagua.get_world_size()))
@@ -328,7 +327,6 @@ def test_synchronize_event(iwait=""):
 
     comm = bagua.communication._get_default_group().get_global_communicator()
 
-    print("rank: ", bagua.get_rank())
     s = torch.ones(size).cuda()
     r = torch.zeros(size).cuda()
     nb = list(range(bagua.get_world_size()))
@@ -465,7 +463,6 @@ def test_error():
 
     comm = bagua.communication._get_default_group().get_global_communicator()
 
-    print("rank: ", bagua.get_rank())
     s = torch.ones(size).cuda()
     r = torch.zeros(size).cuda()
     nb = list(range(bagua.get_world_size()))
@@ -557,18 +554,3 @@ if __name__ == "__main__":
         func_info[0](iwait=func_info[1])
     else:
         print("-------unrecognized arguments for --func: ", chose)
-
-    # print("-----------------test--------")
-    # test()
-    # print("-----------------test-iwait--------")
-    # test_iwait()
-    # print("-----------------test-iwaitlist--------")
-    # test_iwaitlist()
-    # print("-----------------test_synchronize--------")
-    # test_synchronize()
-    # print("-----------------test_synchronize-iwait--------")
-    # test_synchronize_iwait()
-    # print("-----------------test_synchronize-iwaitlist--------")
-    # test_synchronize_iwaitlist()
-    # print("-----------------test_error--------")
-    # test_error()
