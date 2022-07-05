@@ -34,6 +34,17 @@ python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparse
 
 python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparsepy-allgather-full > /dev/null
 
+python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparsepy-allgather-full > /dev/null
+
+
+python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm gradient_allreduce --epochs 20 > /dev/null
+python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm test --epochs 20 > /dev/null
+python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparsepy-simple --epochs 20 > /dev/null
+python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparsepy --epochs 20 > /dev/null
+python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparsepy-allgather --epochs 20 > /dev/null
+python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparsepy-allgather-full  --epochs 20 > /dev/null
+
+
 
 sketch:
 python -m bagua.distributed.launch --nproc_per_node=2 main.py --algorithm gradient_allreduce_sketch > /dev/null

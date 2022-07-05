@@ -137,7 +137,7 @@ class SparsepyAlgorithmImpl(AlgorithmImpl):
                     nonzero += tmp_buffer.count_nonzero().item()
                     nonzero1 += tmp_tensor.count_nonzero().item()
                     size += count
-                logging.info("-----rank: {}, tensors_buffer nonzero size: {}, tmp_tensor nonzero size: {}.".format(self.rank, nonzero, nonzero1))
+                # logging.info("-----rank: {}, tensors_buffer nonzero size: {}, tmp_tensor nonzero size: {}.".format(self.rank, nonzero, nonzero1))
 
 
             def test():
@@ -155,7 +155,7 @@ class SparsepyAlgorithmImpl(AlgorithmImpl):
             bagua.allgather(self.send_messages, self.recv_messages)
             torch.cuda.synchronize()
             unpack()
-            test()
+            # test()
 
         return hook
     

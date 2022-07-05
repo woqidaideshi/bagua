@@ -145,7 +145,7 @@ class SparsepyAlgorithmImpl(AlgorithmImpl):
             bagua.allgather(self.send_messages, self.recv_messages)
             torch.cuda.synchronize()
             unpack()
-            test()
+            # test()
 
         return hook
     

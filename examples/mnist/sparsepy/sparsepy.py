@@ -151,7 +151,7 @@ class SparsepyAlgorithmImpl(AlgorithmImpl):
             if self.rank != 0:
                 torch.cuda.synchronize()
                 unpack2tensors()
-            test()
+            # test()
 
         return hook
     

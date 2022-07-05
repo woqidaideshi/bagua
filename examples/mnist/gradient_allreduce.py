@@ -40,7 +40,7 @@ class SimpleOptimizer(Optimizer):
             for param in group["params"]:
                 param.data.add_(param.grad, alpha=-lr)
                 nonzero += param.grad.count_nonzero().item()
-        logging.info("-----rank: {} in SimpleOptimizer, grad nonzero size: {}.".format(bagua.get_rank(), nonzero))
+        # logging.info("-----rank: {} in SimpleOptimizer, grad nonzero size: {}.".format(bagua.get_rank(), nonzero))
 
         return loss
 
@@ -96,8 +96,8 @@ class GradientAllReduceAlgorithmImpl(AlgorithmImpl):
         assert len(self._communication_tensor_names) == len(
             tensors
         ), "tensor names should be unique"
-        print("-----------------init_tensors len(parameters): ", len(parameters))
-        print("-----------------init_tensors len(tensors): ", len(tensors))
+        # print("-----------------init_tensors len(parameters): ", len(parameters))
+        # print("-----------------init_tensors len(tensors): ", len(tensors))
         return tensors
 
     def tensors_to_buckets(
@@ -117,7 +117,7 @@ class GradientAllReduceAlgorithmImpl(AlgorithmImpl):
             A list of Bagua buckets.
         """
         bagua_buckets = []
-        print("------tensors_to_buckets len(tensors): ", len(tensors))
+        # print("------tensors_to_buckets len(tensors): ", len(tensors))
         for idx, bucket in enumerate(tensors):
             bagua_bucket = BaguaBucket(
                 bucket, flatten=do_flatten, name=str(idx)
