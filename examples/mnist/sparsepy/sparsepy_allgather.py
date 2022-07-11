@@ -52,7 +52,7 @@ class SparsepyAlgorithmImpl(AlgorithmImpl):
         self.communication_interval = communication_interval
         self.cuda_event = torch.cuda.Event()
         self.optimizer = optimizer
-        self.rank = bagua.get_local_rank()
+        self.rank = bagua.get_rank()
         self.topK = topK
         self.param_size = 0
         # self.tensors = []
