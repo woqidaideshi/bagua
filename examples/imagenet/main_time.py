@@ -410,7 +410,7 @@ def main_worker(args):
 
     epochs = int(args.epochs)
 
-    for epoch in range(args.start_epoch, args.epochs):
+    for epoch in range(args.start_epoch, epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
 
@@ -450,11 +450,11 @@ def main_worker(args):
         avg_grad_t += grad_t
         avg_loss_t += loss_t
 
-        if epoch == 1:
+        if epoch == 0:
             first_exec_t = exec_t
             first_grad_t = grad_t
             first_loss_t = loss_t
-        elif epoch == 2:
+        elif epoch == 1:
             second_exec_t = exec_t
             second_grad_t = grad_t
             second_loss_t = loss_t
@@ -462,7 +462,7 @@ def main_worker(args):
         accuracy = acc1
 
         writer.write('[%s] [Epoch %2d] Loss = %.2f, acc = %.2f, exec_t = %.2fs, train_t = %.2fs, test_t = %.2fs' % 
-            (get_current_time(), epoch, epoch_loss, accuracy, round(exec_t, 2),
+            (get_current_time(), epoch + 1, epoch_loss, accuracy, round(exec_t, 2),
 			round(grad_t, 2), round(loss_t, 2)))
         writer.write('\n')
         writer.flush()
