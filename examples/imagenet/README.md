@@ -10,6 +10,9 @@ This implements training of popular model architectures, such as ResNet, AlexNet
 python3 -m bagua.distributed.launch --nproc_per_node=8 main.py --arch resnet50 --algorithm gradient_allreduce [imagenet-folder with train and val folders]
 ```
 
+```bash
+python3 -m bagua.distributed.launch --nproc_per_node=4 main_time.py --arch resnet50 --algorithm sparsepy-allgather-full --epochs 50 ./imagenette2
+```
 ### Multiple nodes
 
 The following scripts launch a distributed job on a 2-by-8 gpu cluster. 
