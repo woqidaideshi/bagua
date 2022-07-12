@@ -354,7 +354,7 @@ def main_worker(args):
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
-        batch_size=args.batch_size,
+        batch_size=args.batch_size // bagua.get_world_size(),
         shuffle=(train_sampler is None),
         num_workers=args.workers,
         pin_memory=True,

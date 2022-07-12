@@ -322,7 +322,7 @@ def main_worker(args):
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
-        batch_size=args.batch_size,
+        batch_size=args.batch_size // bagua.get_world_size(),
         shuffle=(train_sampler is None),
         num_workers=args.workers,
         pin_memory=True,
@@ -390,8 +390,10 @@ def train(train_loader, model, criterion, optimizer, scaler, epoch, args):
     model.train()
 
     end = time.time()
+    # rank = bagua.get_rank()
+    # logging.info("-----------train, rank{}, train_loader length: {}".format(rank, len(train_loader)))
     for i, (images, target) in enumerate(train_loader):
-
+        # logging.info("-----------train, rank{}, train_data length: {}".format(rank, len(images)))
         if args.prof >= 0 and i == args.prof:
             print("Profiling begun at iteration {}".format(i))
             torch.cuda.cudart().cudaProfilerStart()

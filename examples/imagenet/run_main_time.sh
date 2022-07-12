@@ -1,5 +1,6 @@
 #!/bin/bash
 # bash run_main_time.sh ./imagenette2
+set -e
 
 export CUDA_VISIBLE_DEVICES=0,1,2,5
 datadir=$1

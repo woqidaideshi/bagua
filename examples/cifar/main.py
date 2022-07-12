@@ -21,8 +21,11 @@ def train(args, model, train_loader, optimizer, epoch, criterion=None, rank=0):
     model.train()
     train_loss = 0
     start_epoch = datetime.now()
+    ranks = bagua.get_world_size()
+    # logging.info("-----------train, rank{}, train_loader length: {}".format(rank, len(train_loader)))
     # print("rank: %d, epoch: %d, all datasize: %d, args.batch_size: %d." % (rank, epoch, len(train_loader), args.batch_size))
     for batch_idx, (data, target) in enumerate(train_loader):
+        # logging.info("-----------train, rank{}, train_data length: {}".format(rank, len(data)))
         start_batch = datetime.now()
         # print("rank: %d, epoch: %d, batch index: %d, datasize: %d, args.batch_size: %d" % (rank, epoch, batch_idx, len(data), args.batch_size))
         data, target = data.cuda(), target.cuda()
@@ -51,7 +54,7 @@ def train(args, model, train_loader, optimizer, epoch, criterion=None, rank=0):
                 "Train Rank: {} Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} time: {}s.".format(
                     rank,
                     epoch,
-                    batch_idx * len(data),
+                    batch_idx * len(data) * ranks,
                     len(train_loader.dataset),
                     100.0 * batch_idx / len(train_loader),
                     loss.item(),
@@ -64,7 +67,7 @@ def train(args, model, train_loader, optimizer, epoch, criterion=None, rank=0):
         "Train Rank: {} Epoch: {} [{}/{}]\tLoss: {:.6f} time: {}s.".format(
             rank,
             epoch,
-            batch_idx * len(data),
+            batch_idx * len(data) * ranks,
             len(train_loader.dataset),
             train_loss,
             time_delta,
@@ -224,7 +227,7 @@ def main():
     test_kwargs.update(cuda_kwargs)
     train_kwargs.update(
         {
-            "batch_size": args.batch_size, # // bagua.get_world_size(),
+            "batch_size": args.batch_size // bagua.get_world_size(),
             "shuffle": False,
         }
     )
@@ -239,6 +242,8 @@ def main():
         net = VGG('VGG19')
     elif (args.model_name == 'VGG16'):
         net = VGG('VGG16')
+    elif (args.model_name == 'VGG13'):
+        net = VGG('VGG13')
 
     model = net.cuda()
     criterion = nn.CrossEntropyLoss()

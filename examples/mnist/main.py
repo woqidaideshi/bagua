@@ -43,10 +43,12 @@ class Net(nn.Module):
 
 def train(args, model, train_loader, optimizer, epoch, rank=0):
     model.train()
+    ranks = bagua.get_world_size()
+    # logging.info("-----------train, rank{}, train_loader length: {}".format(rank, len(train_loader)))
     # print("rank: %d, epoch: %d, all datasize: %d, args.batch_size: %d." % (rank, epoch, len(train_loader), args.batch_size))
     for batch_idx, (data, target) in enumerate(train_loader):
         # print("rank: %d, epoch: %d, batch index: %d, datasize: %d, args.batch_size: %d" % (rank, epoch, batch_idx, len(data), args.batch_size))
-
+        # logging.info("-----------train, rank{}, train_data length: {}".format(rank, len(data)))
         data, target = data.cuda(), target.cuda()
         # if isinstance(optimizer, list):
         #     for opt in optimizer:
@@ -143,7 +145,7 @@ def train(args, model, train_loader, optimizer, epoch, rank=0):
                 "Train Rank: {} Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
                     rank,
                     epoch,
-                    batch_idx * len(data),
+                    batch_idx * len(data) * ranks,
                     len(train_loader.dataset),
                     100.0 * batch_idx / len(train_loader),
                     loss.item(),

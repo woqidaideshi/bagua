@@ -1,5 +1,6 @@
 #!/bin/bash
 # bash run_main_time_cluster.sh 4 0 ./imagenette2
+set -e
 nodes=$1
 node_rank=$2
 datadir=$3

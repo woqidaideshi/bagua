@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -e
 export CUDA_VISIBLE_DEVICES=0,1,2,5
 
 python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm gradient_allreduce --epochs 20 > /dev/null

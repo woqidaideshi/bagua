@@ -215,7 +215,7 @@ def main():
     test_kwargs.update(cuda_kwargs)
     train_kwargs.update(
         {
-            "batch_size": args.batch_size, # // bagua.get_world_size(),
+            "batch_size": args.batch_size // bagua.get_world_size(),
             "shuffle": False,
         }
     )
@@ -230,6 +230,8 @@ def main():
         net = VGG('VGG19')
     elif (args.model_name == 'VGG16'):
         net = VGG('VGG16')
+    elif (args.model_name == 'VGG13'):
+        net = VGG('VGG13')
 
     model = net.cuda()
     criterion = nn.CrossEntropyLoss()
