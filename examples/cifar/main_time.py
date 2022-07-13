@@ -116,7 +116,7 @@ def main():
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=256,
+        default=64,
         metavar="N",
         help="input batch size for training (default: 64)",
     )
@@ -232,6 +232,8 @@ def main():
         net = VGG('VGG16')
     elif (args.model_name == 'VGG13'):
         net = VGG('VGG13')
+    elif (args.model_name == 'VGG11'):
+        net = VGG('VGG11')
 
     model = net.cuda()
     criterion = nn.CrossEntropyLoss()
