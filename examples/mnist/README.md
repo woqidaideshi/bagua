@@ -11,7 +11,6 @@ python test.py --nprocs 2 --epochs 6 > /dev/null
 python -m bagua.distributed.launch --nproc_per_node=1 main.py --algorithm gradient_allreduce > /dev/null
 
 
-
 test:
 python -m bagua.distributed.launch --nproc_per_node=1 test_fused_optimizer.py
 
@@ -44,6 +43,7 @@ python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm s
 python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparsepy-allgather --epochs 20 > /dev/null
 python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparsepy-allgather-full  --epochs 20 > /dev/null
 
+python -m bagua.distributed.launch --nproc_per_node=1 main.py --algorithm sparse-test
 
 
 sketch:

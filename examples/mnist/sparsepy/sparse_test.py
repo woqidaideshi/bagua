@@ -224,7 +224,7 @@ class SparseAlgorithmImpl(AlgorithmImpl):
             index_tensor = bucket.tensors[0]
             index_tensor.bagua_getter_closure().copy_(indexes)
             if hasattr(bucket, "_other_tensor"):
-                bucket.other.bagua_getter_closure().copy_(buffer[indexes])
+                bucket._other_tensor.bagua_getter_closure().copy_(buffer[indexes])
 
         def log_func(*args):
             count = 0
@@ -232,7 +232,7 @@ class SparseAlgorithmImpl(AlgorithmImpl):
             for tensor in bucket.tensors:
                 count += tensor.bagua_getter_closure().numel()
             if hasattr(bucket, "_other_tensor"):
-                count_other += bucket.other.bagua_getter_closure().numel()      
+                count_other += bucket._other_tensor.bagua_getter_closure().numel()
             logging.info("----SparseAlgorithmImpl log_func operater: {}, rank: {}, step: {}, index_size: {}, count: {}, count_other: {}.".format(operator, self.rank, bagua_ddp.bagua_train_step_counter, self.topK, count, count_other))
 
         # bucket.append_python_op(set_index, group=self.process_group)

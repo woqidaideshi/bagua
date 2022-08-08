@@ -152,4 +152,11 @@ extern "C" {
         N: i32,
         stream: *const c_void,
     );
+    pub fn index_array_host(
+        input: *mut c_void,
+        index: *mut c_void,
+        index_num_element: i32,
+        output: *mut c_void,
+        stream: *const c_void,
+    );
 }

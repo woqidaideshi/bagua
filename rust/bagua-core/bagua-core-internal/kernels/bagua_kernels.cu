@@ -620,15 +620,15 @@ void decompress_uint8_to_float_host(uint8_t *input, size_t input_size, int chunk
 void compress_float_to_half_host(float *input, int input_num_element, int chunk_size, int num_chunks, half *output,
                                 size_t output_size, int target_chunk, cudaStream_t stream) {
     int chunk_offset = output_size / num_chunks;
-    printf("compress_float_to_half_host---input_num_element: %d, chunk_size: %d, num_chunks: %d, output_size:%d, target_chunk: %d, chunk_offset: %d\n", input_num_element, chunk_size, num_chunks, output_size, target_chunk, chunk_offset);
+    // printf("compress_float_to_half_host---input_num_element: %d, chunk_size: %d, num_chunks: %d, output_size:%d, target_chunk: %d, chunk_offset: %d\n", input_num_element, chunk_size, num_chunks, output_size, target_chunk, chunk_offset);
     if (target_chunk == -1) {
-        printf("target chunch is -1\n");
+        // printf("target chunch is -1\n");
         dim3 num_blocks(DIVUP(chunk_size, 1024), num_chunks);
-        printf("compress_float_to_half_host-in if--input_num_element: %d, chunk_size: %d, num_chunks: %d, output_size:%d, target_chunk: %d\n", input_num_element, chunk_size, num_chunks, output_size, target_chunk);
+        // printf("compress_float_to_half_host-in if--input_num_element: %d, chunk_size: %d, num_chunks: %d, output_size:%d, target_chunk: %d\n", input_num_element, chunk_size, num_chunks, output_size, target_chunk);
         compress_float_to_half<<<num_blocks, 1024, 0, stream>>>(input, chunk_size, chunk_offset, num_chunks, output,
                                                                output_size);
     } else {
-        printf("target chunch is -1\n");
+        // printf("target chunch is -1\n");
         dim3 num_blocks(DIVUP(chunk_size, 1024), 1);
         float *chunk_input = input + target_chunk * chunk_size;
         half *chunk_output = output + target_chunk * chunk_offset;
@@ -645,11 +645,27 @@ void decompress_half_to_float_host(half *input, size_t input_size, int chunk_siz
                                    cudaStream_t stream) {
 
     int chunk_offset = input_size / num_chunks;
-    printf("decompress_half_to_float_host---input_size: %d, chunk_size: %d, num_chunks: %d, chunk_offset:%d\n", input_size, chunk_size, num_chunks, chunk_offset);
+    // printf("decompress_half_to_float_host---input_size: %d, chunk_size: %d, num_chunks: %d, chunk_offset:%d\n", input_size, chunk_size, num_chunks, chunk_offset);
     dim3 num_blocks(DIVUP(chunk_size, 1024), num_chunks);
     decompress_half_to_float<<<num_blocks, 1024, 0, stream>>>(input, input_size,
                                                              chunk_size, chunk_offset, num_chunks, output);
     CUDACHECK(cudaGetLastError());
+}
+
+void index_array(
+        const float *input_array,
+        const int *index_array,
+        int num_items,
+        float *output_array,
+        cudaStream_t stream) {
+
+    printf("index array--- size : %d.\n", num_items);
+    for (int i=0; i<num_items; i++) {
+        printf("index array---: i: %d, index: %d.\n", i, index_array[i]);
+        printf("index array---: input value: %f.\n", input_array[index_array[i]]);
+        output_array[i] = input_array[index_array[i]];
+        printf("index array---: output value: %f.\n", output_array[i]);
+    }
 }
 
 extern "C" {
@@ -778,6 +794,10 @@ size_t array_min_max_size_f32_host(float *input, int input_num_element, float *o
 
 size_t array_min_max_size_f16_host(half *input, int input_num_element, half *output, cudaStream_t stream) {
     return array_min_max_size(input, input_num_element, output, stream);
+}
+
+void index_array_host(float *input, int *index, int index_num_element, float *output, cudaStream_t stream) {
+    index_array(input, index, index_num_element, output, stream);
 }
 
 }
