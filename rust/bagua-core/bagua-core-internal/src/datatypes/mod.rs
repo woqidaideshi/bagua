@@ -1,4 +1,5 @@
 use crate::comm_ops::centralized_full_precision_synchronous::CentralizedFullPrecisionSynchronous;
+use crate::comm_ops::centralized_full_precision_sparse_synchronous::CentralizedFullPrecisionSparseSynchronous;
 use crate::comm_ops::centralized_low_precision_synchronous::CentralizedLowPrecisionSynchronous;
 use crate::comm_ops::decentralized_full_precision_asynchronous::DecentralizedFullPrecisionAsynchronous;
 use crate::comm_ops::decentralized_full_precision_synchronous::{
@@ -91,6 +92,11 @@ pub trait RawBaguaTensor: Debug {
     fn num_elements_allocated(&self) -> usize;
     fn device_id(&self) -> usize;
     fn dtype(&self) -> BaguaTensorDtype;
+
+    // fn other_data_ptr(&self) -> u64;
+    // fn other_num_elements(&self) -> usize;
+    // fn other_num_elements_allocated(&self) -> usize;
+    // fn other_dtype(&self) -> BaguaTensorDtype;
 
     fn divide_inplace(&mut self, stream_ptr: u64, divide_factor: f32) {
         let tensor_ptr = self.data_ptr();
@@ -757,6 +763,62 @@ impl RawBaguaTensor for TorchTensorRaw {
             }
         })
     }
+
+    // fn other_data_ptr(&self) -> u64 {
+    //     pyo3::Python::with_gil(|py| {
+    //         let py_tensor = self
+    //             .torch_tensor
+    //             .as_ref(py)
+    //             .call_method0("bagua_other_getter_closure")
+    //             .unwrap();
+    //         py_tensor
+    //             .call_method0("data_ptr")
+    //             .unwrap()
+    //             .extract()
+    //             .unwrap()
+    //     })
+    // }
+
+    // fn other_num_elements(&self) -> usize {
+    //     pyo3::Python::with_gil(|py| {
+    //         let py_tensor = self
+    //             .torch_tensor
+    //             .as_ref(py)
+    //             .call_method0("bagua_other_getter_closure")
+    //             .unwrap();
+    //         py_tensor.call_method0("numel").unwrap().extract().unwrap()
+    //     })
+    // }
+
+    // fn other_num_elements_allocated(&self) -> usize {
+    //     self.other_num_elements()
+    // }
+
+    // fn other_dtype(&self) -> BaguaTensorDtype {
+    //     pyo3::Python::with_gil(|py| {
+    //         let py_tensor = self
+    //             .torch_tensor
+    //             .as_ref(py)
+    //             .call_method0("bagua_other_getter_closure")
+    //             .unwrap();
+    //         let dtype = py_tensor
+    //             .getattr("dtype")
+    //             .unwrap()
+    //             .call_method0("__reduce__")
+    //             .unwrap()
+    //             .extract::<String>()
+    //             .unwrap();
+    //         match dtype.as_str() {
+    //             "float32" => BaguaTensorDtype::F32,
+    //             "float16" => BaguaTensorDtype::F16,
+    //             "int64" => BaguaTensorDtype::I64,
+    //             "uint8" => BaguaTensorDtype::U8,
+    //             _ => {
+    //                 panic!("unsupported tensor dtype {}", dtype);
+    //             }
+    //         }
+    //     })
+    // }
 }
 
 impl RawBaguaTensor for BaguaTensorRaw {
@@ -1109,6 +1171,22 @@ impl BaguaTensor {
     pub fn dtype(&self) -> String {
         format!("{:?}", self.inner.read().raw.dtype())
     }
+
+    // pub fn other_data_ptr(&self) -> u64 {
+    //     self.inner.read().raw.other_data_ptr()
+    // }
+
+    // pub fn other_num_elements(&self) -> usize {
+    //     self.inner.read().raw.other_num_elements()
+    // }
+
+    // pub fn other_num_elements_allocated(&self) -> usize {
+    //     self.inner.read().raw.other_num_elements_allocated()
+    // }
+
+    // pub fn other_dtype(&self) -> String {
+    //     format!("{:?}", self.inner.read().raw.other_dtype())
+    // }
 }
 
 #[derive(Debug)]
@@ -1496,6 +1574,26 @@ impl BaguaBucket {
                 }
             },
         };
+        self.inner.lock().comm_ops.push(comm_op);
+    }
+
+    /// this function will use communicator_internode to communicate.
+    /// if hierarchical = True, it will do hierarchical communicator, this requires intranode communicator on each node and inter node communicator on leader GPU. leader GPU will be the GPU whose communicator_intranode rank is 0
+    pub fn append_centralized_sparse_synchronous_op(
+        &mut self,
+        communicator_internode: Option<&BaguaSingleCommunicator>,
+        communicator_intranode: Option<&BaguaSingleCommunicator>,
+        hierarchical: bool,
+        compression: Option<String>,
+        other_tensor: BaguaTensor,
+    ) {
+        let communicator =
+            BaguaCommunicator::new(communicator_internode, communicator_intranode, hierarchical)
+                .expect("cannot create communicator");
+        let comm_op = Arc::new(CentralizedFullPrecisionSparseSynchronous {
+            communicator,
+            other_tensor,
+        });
         self.inner.lock().comm_ops.push(comm_op);
     }
 

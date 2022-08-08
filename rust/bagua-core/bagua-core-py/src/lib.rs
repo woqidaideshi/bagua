@@ -281,6 +281,10 @@ impl BaguaTensorPy {
         })
     }
 
+    pub fn drop(&mut self) {
+        println!("Dropping BaguaTensorPy!")
+    }
+
     pub fn compress(&self, method: &str, n_chunks: usize, target_chunk: i32) -> Self {
         Self {
             inner: self.inner.compress(method, n_chunks, target_chunk),
@@ -345,6 +349,22 @@ impl BaguaTensorPy {
     pub fn dtype(&self) -> String {
         self.inner.dtype()
     }
+
+    // pub fn other_data_ptr(&self) -> u64 {
+    //     self.inner.other_data_ptr()
+    // }
+
+    // pub fn other_num_elements(&self) -> usize {
+    //     self.inner.other_num_elements()
+    // }
+
+    // pub fn other_num_elements_allocated(&self) -> usize {
+    //     self.inner.other_num_elements_allocated()
+    // }
+
+    // pub fn other_dtype(&self) -> String {
+    //     self.inner.other_dtype()
+    // }
 }
 
 #[pyclass(dict)]
@@ -472,6 +492,27 @@ impl BaguaBucketPy {
             average,
             scattergather,
             compression,
+        );
+        Ok(())
+    }
+
+    /// this function will use communicator_internode to communicate.
+    /// if hierarchical = True, it will do hierarchical communicator, this requires intranode communicator on each node and inter node communicator on leader GPU. leader GPU will be the GPU whose communicator_intranode rank is 0
+    #[args(hierarchical = "false")]
+    pub fn append_centralized_sparse_synchronous_op(
+        &mut self,
+        communicator_internode: Option<&BaguaSingleCommunicatorPy>,
+        communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
+        hierarchical: bool,
+        compression: Option<String>,
+        other_tensor: PyRef<BaguaTensorPy>,
+    ) -> PyResult<()> {
+        self.inner.append_centralized_sparse_synchronous_op(
+            communicator_internode.map(|x| &x.inner),
+            communicator_intranode.map(|x| &x.inner),
+            hierarchical,
+            compression,
+            (*other_tensor).inner.clone(),
         );
         Ok(())
     }
