@@ -350,6 +350,10 @@ impl BaguaTensorPy {
         self.inner.dtype()
     }
 
+    pub fn zero_(&self) {
+        self.inner.zero_()
+    }
+
     // pub fn other_data_ptr(&self) -> u64 {
     //     self.inner.other_data_ptr()
     // }

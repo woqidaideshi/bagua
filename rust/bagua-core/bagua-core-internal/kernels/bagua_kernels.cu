@@ -544,6 +544,40 @@ decompress_half_to_float(half *input, size_t input_size, int chunk_size, int chu
     }
 }
 
+__global__ void
+index_array_cuda(const int *index_array, int num_items, const float *input_array, float *output_array) {
+    printf("threadIdx:(%d, %d, %d)\n", threadIdx.x, threadIdx.y, threadIdx.z);
+    printf("blockIdx:(%d, %d, %d)\n", blockIdx.x, blockIdx.y, blockIdx.z);
+    printf("blockDim:(%d, %d, %d)\n", blockDim.x, blockDim.y, blockDim.z);
+    printf("gridDim:(%d, %d, %d)\n", gridDim.x, gridDim.y, gridDim.z);
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idy = blockIdx.y * blockDim.y + threadIdx.y;
+    const int stride = blockDim.x * gridDim.x;
+    for (int i = idx; i < num_items * stride; i += stride) {
+        int index = idy + i;
+        printf("index array---: i: %d, stride: %d, index_of_index: %d, newindex: %f.\n", i, stride, index, index_array[index]);
+        printf("index array---: i: %d, stride: %d, index_of_index: %d, newindex: %d.\n", i, stride, index, index_array[index]);
+        // printf("index array---: input value: %f.\n", input_array[__float2int_rd(index_array[index])]);
+        // output_array[index] = input_array[__float2int_rd(index_array[index])];
+        output_array[index] = input_array[index_array[index]];
+        printf("index array---: output value: %f.\n", output_array[index]);
+    }
+}
+
+__global__ void
+array_index_cuda(const float *input_array, const int *index_array, int num_items, float *output_array) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idy = blockIdx.y * blockDim.y + threadIdx.y;
+    const int stride = blockDim.x * gridDim.x * 2;
+    for (int i = idx; i < num_items * stride; i += stride) {
+        int index = idy + i;
+        printf("array index---: i: %d, stride: %d, index_of_index: %d, newindex: %d.\n", i, stride, index, index_array[index]);
+        printf("array index---: input value: %f.\n", input_array[index]);
+        output_array[index_array[index]] += input_array[index];
+        printf("array index---: output value: %f.\n", output_array[index_array[index]]);
+    }
+}
+
 template<typename T, bool average>
 void reduce_chunk_inplace_host(T *input, int chunk_size, int num_chunks, int target_chunk, cudaStream_t stream) {
     if (num_chunks <= 4) {
@@ -653,19 +687,47 @@ void decompress_half_to_float_host(half *input, size_t input_size, int chunk_siz
 }
 
 void index_array(
+        const int *index_array,
+        int num_items,
+        const float *input_array,
+        float *output_array,
+        cudaStream_t stream) {
+
+    printf("index array--- size : %d.\n", num_items);
+    index_array_cuda<<<1, 1, 0, stream>>>(index_array, num_items, input_array, output_array);
+    // printf("threadIdx:(%d, %d, %d)\n", threadIdx.x, threadIdx.y, threadIdx.z);
+    // printf("blockIdx:(%d, %d, %d)\n", blockIdx.x, blockIdx.y, blockIdx.z);
+    // printf("blockDim:(%d, %d, %d)\n", blockDim.x, blockDim.y, blockDim.z);
+    // printf("gridDim:(%d, %d, %d)\n", gridDim.x, gridDim.y, gridDim.z);
+    // for (int i=0; i<num_items; i++) {
+    //     printf("index array---: i: %d, index: %d.\n", i, index_array[i]);
+    //     printf("index array---: input value: %f.\n", input_array[index_array[i]]);
+    //     output_array[i] = input_array[index_array[i]];
+    //     printf("index array---: output value: %f.\n", output_array[i]);
+    // }
+    CUDACHECK(cudaGetLastError());
+}
+
+void array_index(
         const float *input_array,
         const int *index_array,
         int num_items,
         float *output_array,
         cudaStream_t stream) {
 
-    printf("index array--- size : %d.\n", num_items);
-    for (int i=0; i<num_items; i++) {
-        printf("index array---: i: %d, index: %d.\n", i, index_array[i]);
-        printf("index array---: input value: %f.\n", input_array[index_array[i]]);
-        output_array[i] = input_array[index_array[i]];
-        printf("index array---: output value: %f.\n", output_array[i]);
-    }
+    printf("array index--- size : %d.\n", num_items);
+    array_index_cuda<<<1, 1, 0, stream>>>(input_array, index_array, num_items, output_array);
+    // printf("threadIdx:(%d, %d, %d)\n", threadIdx.x, threadIdx.y, threadIdx.z);
+    // printf("blockIdx:(%d, %d, %d)\n", blockIdx.x, blockIdx.y, blockIdx.z);
+    // printf("blockDim:(%d, %d, %d)\n", blockDim.x, blockDim.y, blockDim.z);
+    // printf("gridDim:(%d, %d, %d)\n", gridDim.x, gridDim.y, gridDim.z);
+    // for (int i=0; i<num_items; i++) {
+    //     printf("index array---: i: %d, index: %d.\n", i, index_array[i]);
+    //     printf("index array---: input value: %f.\n", input_array[index_array[i]]);
+    //     output_array[i] = input_array[index_array[i]];
+    //     printf("index array---: output value: %f.\n", output_array[i]);
+    // }
+    CUDACHECK(cudaGetLastError());
 }
 
 extern "C" {
@@ -796,8 +858,13 @@ size_t array_min_max_size_f16_host(half *input, int input_num_element, half *out
     return array_min_max_size(input, input_num_element, output, stream);
 }
 
-void index_array_host(float *input, int *index, int index_num_element, float *output, cudaStream_t stream) {
-    index_array(input, index, index_num_element, output, stream);
+void index_array_host(int *index, int index_num_element, float *input, float *output, cudaStream_t stream) {
+// void index_array_host(int *index, int index_num_element, float *input, float *output, cudaStream_t stream) {
+    index_array(index, index_num_element, input, output, stream);
+}
+
+void array_index_host(float *input, int *index, int index_num_element, float *output, cudaStream_t stream) {
+    array_index(input, index, index_num_element, output, stream);
 }
 
 }

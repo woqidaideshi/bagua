@@ -153,6 +153,13 @@ extern "C" {
         stream: *const c_void,
     );
     pub fn index_array_host(
+        index: *mut c_void,
+        index_num_element: i32,
+        input: *mut c_void,
+        output: *mut c_void,
+        stream: *const c_void,
+    );
+    pub fn array_index_host(
         input: *mut c_void,
         index: *mut c_void,
         index_num_element: i32,

@@ -92,6 +92,7 @@ pub trait RawBaguaTensor: Debug {
     fn num_elements_allocated(&self) -> usize;
     fn device_id(&self) -> usize;
     fn dtype(&self) -> BaguaTensorDtype;
+    fn zero_(&self);
 
     // fn other_data_ptr(&self) -> u64;
     // fn other_num_elements(&self) -> usize;
@@ -764,6 +765,16 @@ impl RawBaguaTensor for TorchTensorRaw {
         })
     }
 
+    fn zero_(&self) {
+        pyo3::Python::with_gil(|py| {
+            let py_tensor = self
+                .torch_tensor
+                .as_ref(py)
+                .call_method0("bagua_getter_closure")
+                .unwrap();
+            py_tensor.call_method0("zero_").unwrap();
+        })
+    }
     // fn other_data_ptr(&self) -> u64 {
     //     pyo3::Python::with_gil(|py| {
     //         let py_tensor = self
@@ -840,6 +851,10 @@ impl RawBaguaTensor for BaguaTensorRaw {
 
     fn dtype(&self) -> BaguaTensorDtype {
         self.dtype
+    }
+
+    fn zero_(&self) {
+        self.zero_()
     }
 }
 
@@ -1170,6 +1185,10 @@ impl BaguaTensor {
 
     pub fn dtype(&self) -> String {
         format!("{:?}", self.inner.read().raw.dtype())
+    }
+
+    pub fn zero_(&self) {
+        self.inner.read().raw.zero_()
     }
 
     // pub fn other_data_ptr(&self) -> u64 {

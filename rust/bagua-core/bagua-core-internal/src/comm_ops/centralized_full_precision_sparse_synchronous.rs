@@ -39,13 +39,14 @@ impl CommOpTrait for CentralizedFullPrecisionSparseSynchronous {
 
                 unsafe {
                     kernels::index_array_host(
-                        other_tensor_raw.data_ptr() as _,
                         t.raw.data_ptr() as _,
                         t.raw.num_elements() as _,
+                        other_tensor_raw.data_ptr() as _,
                         temp_other_buf.ptr as _,
                         c.stream_ptr as _,
                     );
                 }
+
                 println!("after index array host.");
 
                 let mut send_other_tensor = BaguaTensorRaw {
@@ -74,21 +75,33 @@ impl CommOpTrait for CentralizedFullPrecisionSparseSynchronous {
 
                 println!("send other tensor raw length: {}, recv other tensors length: {} after.", send_other_tensor.num_elements(), recv_others_tensor.num_elements());
 
-                let temp_index_buf = CUDA_DEVICE_MEMORY_POOL[t.raw.device_id()]
+                let recv_index_buf = CUDA_DEVICE_MEMORY_POOL[t.raw.device_id()]
                     .try_pull(t.raw.num_elements_allocated() * t.raw.dtype().bytes() * c.nranks)
                     .expect("cannot allocate cuda memory");
 
-                let mut temp_index_tensor = BaguaTensorRaw {
-                    ptr: temp_index_buf.ptr,
+                let mut recv_index_tensor = BaguaTensorRaw {
+                    ptr: recv_index_buf.ptr,
                     num_elem_allocated: t.raw.num_elements_allocated() * c.nranks,
                     dtype: t.raw.dtype().clone(),
                     num_elem: t.raw.num_elements() * c.nranks,
                     device_id: t.raw.device_id(),
-                    pool_allocations: vec![Arc::new(temp_index_buf)],
+                    pool_allocations: vec![Arc::new(recv_index_buf)],
                 };
-                c.allgather(&mut t.raw, &mut temp_index_tensor);
+                c.allgather(&mut t.raw, &mut recv_index_tensor);
+
+                other_tensor_raw.zero_();
+
+                unsafe {
+                    kernels::array_index_host(
+                        recv_others_tensor.data_ptr() as _,
+                        recv_index_tensor.data_ptr() as _,
+                        recv_index_tensor.num_elements() as _,
+                        other_tensor_raw.data_ptr() as _,
+                        c.stream_ptr as _,
+                    );
+                }
                 println!("index tensor raw length: {} after.", t.raw.num_elements());
-                println!("temp_index_tensor tensor raw length: {} after.", temp_index_tensor.num_elements());
+                println!("recv_index_tensor tensor raw length: {} after.", recv_index_tensor.num_elements());
                 tracing::debug!("internode communication done")
             },
         );
