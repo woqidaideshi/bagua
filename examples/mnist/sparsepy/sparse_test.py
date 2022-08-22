@@ -70,11 +70,6 @@ class SparseAlgorithmImpl(AlgorithmImpl):
             self.topK = self.param_size // 100
         elif self.topK > self.param_size:
             self.topK = self.param_size
-        # self.tensor_send = torch.zeros(self.param_size, dtype=torch.float32).cuda()
-        self.recv_messages = torch.zeros(self.topK*self.works, dtype=torch.float32).cuda()
-        self.recv_indexes = torch.zeros(self.topK*self.works, dtype=torch.int64).cuda()
-        self.send_messages = torch.zeros(self.topK, dtype=torch.float32).cuda()
-        self.send_indexes = torch.zeros(self.topK, dtype=torch.int64).cuda()
         self.tensors_buffer = torch.zeros(self.param_size, dtype=torch.float32).cuda()
         logging.info("---------param_size: {}, topK: {}".format(self.param_size, self.topK))
 
@@ -227,19 +222,21 @@ class SparseAlgorithmImpl(AlgorithmImpl):
         logging.info("-------------init_operations.")
         bucket.clear_ops()
         def set_index(*args):
-            buffer = torch.cat([t.view(-1) for t in self.tensors])  # copies
-            _, indexes = torch.topk(buffer**2, self.topK)
-            index_tensor = bucket.tensors[0]
-            index_tensor.bagua_getter_closure().copy_(indexes)
-            count_origin = 0
-            count_origin_nonzero = 0
-            for tensor in self.tensors:
-                count_origin += tensor.numel()
-                count_origin_nonzero += tensor.count_nonzero().item()
             if hasattr(bucket, "_other_tensor"):
+                buffer = torch.cat([t.view(-1) for t in self.tensors])  # copies
+                _, indexes = torch.topk(buffer**2, self.topK)
+                index_tensor = bucket.tensors[0]
+                index_tensor.bagua_getter_closure().copy_(indexes)
+                count_origin = 0
+                count_origin_nonzero = 0
+                for tensor in self.tensors:
+                    count_origin += tensor.numel()
+                    count_origin_nonzero += tensor.count_nonzero().item()
                 bucket._other_tensor.bagua_getter_closure().copy_(buffer)
                 print("----SparseAlgorithmImpl set_index rank: {}, step: {}, index_size: {}, count: {}, count_nonzero: {}, count_other: {}, count_other_nonzero: {}, count_origin: {}, count_origin_nonzero: {}, other: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, self.topK, indexes.numel(), indexes.count_nonzero().item(), buffer.numel(), buffer.count_nonzero().item(), count_origin, count_origin_nonzero, bucket._other_tensor.bagua_getter_closure().count_nonzero().item()))
-                print("----SparseAlgorithmImpl log_func rank: {}, step: {}, value: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, buffer[indexes]))
+                # print("----SparseAlgorithmImpl set_index rank: {}, step: {}, gradient: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, buffer))
+                print("----SparseAlgorithmImpl set_index rank: {}, step: {}, value: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, buffer[indexes]))
+                print("----SparseAlgorithmImpl set_index rank: {}, step: {}, index: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, indexes))
 
         def log_func(*args):
             count = 0
@@ -256,8 +253,23 @@ class SparseAlgorithmImpl(AlgorithmImpl):
             if hasattr(bucket, "_other_tensor"):
                 count_other += bucket._other_tensor.bagua_getter_closure().numel()
                 count_other_nonzero += bucket._other_tensor.bagua_getter_closure().count_nonzero().item()
-            print("----SparseAlgorithmImpl log_func rank: {}, step: {}, index_size: {}, count: {}, count_nonzero: {}, count_other: {}, count_other_nonzero: {}, count_origin: {}, count_origin_nonzero: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, self.topK, count, count_nonzero, count_other, count_other_nonzero, count_origin, count_origin_nonzero))
-            print("----SparseAlgorithmImpl log_func rank: {}, step: {}, index: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, bucket.tensors[0].bagua_getter_closure()))
+            # print("----SparseAlgorithmImpl log_func rank: {}, step: {}, index_size: {}, count: {}, count_nonzero: {}, count_other: {}, count_other_nonzero: {}, count_origin: {}, count_origin_nonzero: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, self.topK, count, count_nonzero, count_other, count_other_nonzero, count_origin, count_origin_nonzero))
+            # print("----SparseAlgorithmImpl log_func rank: {}, step: {}, index: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, bucket.tensors[0].bagua_getter_closure()))
+            buffer = torch.cat([t.view(-1) for t in self.tensors])  # copies
+            # real_grad = buffer.clone().detach()
+            real_grad = torch.zeros_like(buffer)
+            _, _indexes = torch.topk(buffer**2, self.topK)
+            real_grad[_indexes]= buffer[_indexes] # += values
+            print("--------------rank: {}, step: {}, bucker.index_tensor == _indexes = {},\
+               other_tensor == buffer_gradient: {}, other_tensor == real_grad: {}, other_tensor.nonzeor: {}, \
+               buffer_gradient nonzero: {}!!!".format(self.rank, bagua_ddp.bagua_train_step_counter, 
+               torch.equal(bucket.tensors[0].bagua_getter_closure(), _indexes),
+               torch.equal(bucket._other_tensor.bagua_getter_closure(), buffer),
+               torch.equal(bucket._other_tensor.bagua_getter_closure(), real_grad),
+               bucket._other_tensor.bagua_getter_closure().count_nonzero().item(),
+               buffer.count_nonzero().item()))
+            print("----SparseAlgorithmImpl log_func rank: {}, step: {}, after value: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, bucket._other_tensor.bagua_getter_closure()))
+
 
         bucket.append_python_op(set_index, group=self.process_group)
         bucket.append_python_op(log_func, group=self.process_group)

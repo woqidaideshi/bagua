@@ -403,7 +403,7 @@ def main():
         import signum
         signum_optimizer = signum.SignumOptimizer(model.parameters(), lr=args.lr)
         algorithm = signum.SignumAlgorithm(signum_optimizer, False)
-    elif args.algorithm == "sparse":
+    elif args.algorithm == "sparse-sketch":
         import sparse
         # optimizer = sparse.SketchedSGD(optim.SGD(model.parameters(), lr=args.lr))
         optimizer = optim.SGD(model.parameters(), lr=0.01)
@@ -441,6 +441,9 @@ def main():
     elif args.algorithm == "sparsepy-allgather-full":
         from sparsepy import sparsepy_allgather_full
         algorithm = sparsepy_allgather_full.SparsepyAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse":
+        from bagua.torch_api.algorithms import sparse
+        algorithm = sparse.SparseAlgorithm(optimizer=optimizer)
     elif args.algorithm == "sparse-test":
         from sparsepy import sparse_test
         algorithm = sparse_test.SparseAlgorithm(optimizer=optimizer)

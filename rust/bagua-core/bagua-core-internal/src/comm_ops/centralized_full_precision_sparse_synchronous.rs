@@ -37,11 +37,50 @@ impl CommOpTrait for CentralizedFullPrecisionSparseSynchronous {
                     .try_pull(t.raw.num_elements_allocated() * other_tensor_raw.dtype().bytes())
                     .expect("cannot allocate cuda memory");
 
+                // let count = other_tensor_raw.dtype().bytes();
+                // let mut dst = temp_other_buf.ptr;
+                // let size = other_tensor_raw.dtype().bytes() as u64;
+                // for i in 0..t.raw.num_elements(){
+                //     let mut src = other_tensor_raw.data_ptr();
+                //     let mut index = t.raw.data_ptr() + (i as u64) * (t.raw.dtype().bytes() as u64);
+                //     dst += i as u64 * (other_tensor_raw.dtype().bytes() as u64);
+                //     // let mut src = other_tensor_raw.data_ptr() + (*index as u64) * (other_tensor_raw.dtype().bytes() as u64);
+                //     unsafe {
+                //         cpp::cpp!([stream_ptr as "cudaStream_t", dst as "void *", src as "const void *", index as "const void *", size as "size_t", count as "size_t"]
+                //         {
+                //             src = src + (* index) * size;
+                //             CUDACHECK(cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, stream_ptr));
+                //         });
+                //     }
+                // }
+
+                // let temp_other_buf = CUDA_DEVICE_MEMORY_POOL[other_tensor_raw.device_id()]
+                //     .try_pull(other_tensor_raw.num_elements_allocated() * other_tensor_raw.dtype().bytes())
+                //     .expect("cannot allocate cuda memory");
+
+                // unsafe {
+                //     kernels::test_array_host(
+                //         other_tensor_raw.data_ptr() as _,
+                //         other_tensor_raw.num_elements() as _,
+                //         temp_other_buf.ptr as _,
+                //         c.stream_ptr as _,
+                //     );
+                // }
+                // other_tensor_raw.zero_();
+                // unsafe {
+                //     kernels::test_array_host(
+                //         temp_other_buf.ptr as _,
+                //         other_tensor_raw.num_elements() as _,
+                //         other_tensor_raw.data_ptr() as _,
+                //         c.stream_ptr as _,
+                //     );
+                // }
+
                 unsafe {
                     kernels::index_array_host(
+                        other_tensor_raw.data_ptr() as _,
                         t.raw.data_ptr() as _,
                         t.raw.num_elements() as _,
-                        other_tensor_raw.data_ptr() as _,
                         temp_other_buf.ptr as _,
                         c.stream_ptr as _,
                     );
@@ -89,17 +128,52 @@ impl CommOpTrait for CentralizedFullPrecisionSparseSynchronous {
                 };
                 c.allgather(&mut t.raw, &mut recv_index_tensor);
 
-                other_tensor_raw.zero_();
+                // other_tensor_raw.zero_();
 
+                // let dst = other_tensor_raw.data_ptr();
+                // let total_num = other_tensor_raw.num_elements();
+                // unsafe {
+                //     cpp::cpp!([stream_ptr as "cudaStream_t", dst as "void *", total_num as "size_t"]
+                //     {
+                //         CUDACHECK(cudaMemset(dst, 0.0f, total_num * sizeof(int)));
+                //     });
+                // }
                 unsafe {
                     kernels::array_index_host(
                         recv_others_tensor.data_ptr() as _,
                         recv_index_tensor.data_ptr() as _,
                         recv_index_tensor.num_elements() as _,
                         other_tensor_raw.data_ptr() as _,
+                        other_tensor_raw.num_elements() as _,
                         c.stream_ptr as _,
                     );
                 }
+
+                // let mut src = temp_other_buf.ptr;
+                // let mut dst = other_tensor_raw.data_ptr();
+                // for i in 0..t.raw.num_elements(){
+                //     let mut index = t.raw.data_ptr() + (i as u64)  * (t.raw.dtype().bytes() as u64);
+                //     // let mut dst = other_tensor_raw.data_ptr() + (* index as u64) * (other_tensor_raw.dtype().bytes() as u64);
+                //     src += i as u64 * other_tensor_raw.dtype().bytes() as u64;
+                //     unsafe {
+                //         cpp::cpp!([stream_ptr as "cudaStream_t", dst as "void *", src as "const void *", index as "const void *", size as "size_t", count as "size_t"]
+                //         {
+                //             dst = dst + (* index) * size;
+                //             CUDACHECK(cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, stream_ptr));
+                //         });
+                //     }
+                // }
+
+                // unsafe {
+                //     kernels::array_index_host(
+                //         temp_other_buf.ptr as _,
+                //         t.raw.data_ptr() as _,
+                //         t.raw.num_elements() as _,
+                //         other_tensor_raw.data_ptr() as _,
+                //         other_tensor_raw.num_elements() as _,
+                //         c.stream_ptr as _,
+                //     );
+                // }
                 println!("index tensor raw length: {} after.", t.raw.num_elements());
                 println!("recv_index_tensor tensor raw length: {} after.", recv_index_tensor.num_elements());
                 tracing::debug!("internode communication done")
