@@ -91,6 +91,16 @@ def get_optimizer_algorithm(model, args, optimizer = None):
         sys.path.append("../mnist/sparsepy")
         import sparsepy_simple
         algorithm = sparsepy_simple.SparsepyAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-test":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparse_test
+        algorithm = sparse_test.SparseAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-test-inplace":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparse_test
+        algorithm = sparse_test.SparseInplaceAlgorithm(optimizer=optimizer)
     elif args.algorithm == "test":
         import sys
         sys.path.append("../mnist")

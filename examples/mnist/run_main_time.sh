@@ -8,3 +8,5 @@ python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm s
 python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparsepy --epochs 20 > /dev/null
 python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparsepy-allgather --epochs 20 > /dev/null
 python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparsepy-allgather-full --epochs 20 > /dev/null
+python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparse-test-inplace --epochs 20 > /dev/null
+python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparse-test --epochs 20 > /dev/null
