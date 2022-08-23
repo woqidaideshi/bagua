@@ -70,11 +70,11 @@ class SparseAlgorithmImpl(AlgorithmImpl):
             self.topK = self.param_size // 100
         elif self.topK > self.param_size:
             self.topK = self.param_size
-        self.recv_messages = torch.zeros(self.topK*self.works, dtype=torch.float32).cuda()
-        self.recv_indexes = torch.zeros(self.topK*self.works, dtype=torch.int64).cuda()
-        self.send_messages = torch.zeros(self.topK, dtype=torch.float32).cuda()
-        self.send_indexes = torch.zeros(self.topK, dtype=torch.int64).cuda()
-        self.tensors_buffer = torch.zeros(self.param_size, dtype=torch.float32).cuda()
+        # self.recv_messages = torch.zeros(self.topK*self.works, dtype=torch.float32).cuda()
+        # self.recv_indexes = torch.zeros(self.topK*self.works, dtype=torch.int64).cuda()
+        # self.send_messages = torch.zeros(self.topK, dtype=torch.float32).cuda()
+        # self.send_indexes = torch.zeros(self.topK, dtype=torch.int64).cuda()
+        # self.tensors_buffer = torch.zeros(self.param_size, dtype=torch.float32).cuda()
         self.other_tensor_buffer = torch.zeros(self.param_size, dtype=torch.float32).cuda()
         self.value_tensor_buffer = torch.zeros(self.topK, dtype=torch.float32).cuda()
         logging.info("---------param_size: {}, topK: {}".format(self.param_size, self.topK))
@@ -127,31 +127,43 @@ class SparseAlgorithmImpl(AlgorithmImpl):
         def hook():
             self.index_tensor.bagua_mark_communication_ready()
             bagua_ddp._bagua_backend.wait_pending_comm_ops()
-            def pack():
-                """Packs a list of tensors into one buffer for sending to other workers"""
-                buffer = torch.cat([t.view(-1) for t in self.tensors])  # copies
-                _, indexes = torch.topk(buffer**2, self.topK)
-                self.send_indexes.copy_(indexes)
-                self.send_messages.copy_(buffer[indexes])
+            # def pack():
+            #     """Packs a list of tensors into one buffer for sending to other workers"""
+            #     buffer = torch.cat([t.view(-1) for t in self.tensors])  # copies
+            #     _, indexes = torch.topk(buffer**2, self.topK)
+            #     self.send_indexes.copy_(indexes)
+            #     self.send_messages.copy_(buffer[indexes])
 
-            def unpack():
-                """Provides pointers to tensors of original `shapes` in a flat-packed buffer."""
-                self.tensors_buffer.zero_()
-                for rank in range(self.works):
-                    start = rank * self.topK
-                    end = start + self.topK
-                    self.tensors_buffer[self.recv_indexes[start:end]] += (self.recv_messages[start:end])
-                self.tensors_buffer.div_(self.works)
+            # def unpack():
+            #     """Provides pointers to tensors of original `shapes` in a flat-packed buffer."""
+            #     self.tensors_buffer.zero_()
+            #     for rank in range(self.works):
+            #         start = rank * self.topK
+            #         end = start + self.topK
+            #         self.tensors_buffer[self.recv_indexes[start:end]] += (self.recv_messages[start:end])
+            #     self.tensors_buffer.div_(self.works)
 
-            def test():
-                print("----SparseAlgorithmImpl init_post_backward_hook rank: {}, step: {}, tensors_buffer == other_tensor: {}, tensors_buffer nonzero size: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, torch.equal(self.tensors_buffer, self.other_tensor_buffer), self.tensors_buffer.count_nonzero().item()))
+            # def test():
+            #     print("----SparseAlgorithmImpl init_post_backward_hook rank: {}, step: {}, tensors_buffer == other_tensor: {}, tensors_buffer nonzero size: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, torch.equal(self.tensors_buffer, self.other_tensor_buffer), self.tensors_buffer.count_nonzero().item()))
 
-            pack()
-            bagua.allgather(self.send_indexes, self.recv_indexes)
-            bagua.allgather(self.send_messages, self.recv_messages)
-            torch.cuda.synchronize()
-            unpack()
-            test()
+            def unpack2tensors():
+                size = 0
+                for tensor in self.tensors:
+                    shape = tensor.shape
+                    count = tensor.numel()
+                    tmp_buffer = self.other_tensor_buffer[size:count+size]
+                    tmp_tensor = tensor.view(-1)
+                    tmp_tensor[tmp_buffer.nonzero()] = 0
+                    tmp_tensor.add_(tmp_buffer)
+                    size += count
+
+            # pack()
+            # bagua.allgather(self.send_indexes, self.recv_indexes)
+            # bagua.allgather(self.send_messages, self.recv_messages)
+            # torch.cuda.synchronize()
+            # unpack()
+            # test()
+            unpack2tensors()
 
         return hook
     
@@ -266,11 +278,11 @@ class SparseInplaceAlgorithmImpl(AlgorithmImpl):
             self.topK = self.param_size // 100
         elif self.topK > self.param_size:
             self.topK = self.param_size
-        self.recv_messages = torch.zeros(self.topK*self.works, dtype=torch.float32).cuda()
-        self.recv_indexes = torch.zeros(self.topK*self.works, dtype=torch.int64).cuda()
-        self.send_messages = torch.zeros(self.topK, dtype=torch.float32).cuda()
-        self.send_indexes = torch.zeros(self.topK, dtype=torch.int64).cuda()
-        self.tensors_buffer = torch.zeros(self.param_size, dtype=torch.float32).cuda()
+        # self.recv_messages = torch.zeros(self.topK*self.works, dtype=torch.float32).cuda()
+        # self.recv_indexes = torch.zeros(self.topK*self.works, dtype=torch.int64).cuda()
+        # self.send_messages = torch.zeros(self.topK, dtype=torch.float32).cuda()
+        # self.send_indexes = torch.zeros(self.topK, dtype=torch.int64).cuda()
+        # self.tensors_buffer = torch.zeros(self.param_size, dtype=torch.float32).cuda()
         self.other_tensor_buffer = torch.zeros(self.param_size, dtype=torch.float32).cuda()
         logging.info("---------param_size: {}, topK: {}".format(self.param_size, self.topK))
 
@@ -322,31 +334,43 @@ class SparseInplaceAlgorithmImpl(AlgorithmImpl):
         def hook():
             self.index_tensor.bagua_mark_communication_ready()
             bagua_ddp._bagua_backend.wait_pending_comm_ops()
-            def pack():
-                """Packs a list of tensors into one buffer for sending to other workers"""
-                buffer = torch.cat([t.view(-1) for t in self.tensors])  # copies
-                _, indexes = torch.topk(buffer**2, self.topK)
-                self.send_indexes.copy_(indexes)
-                self.send_messages.copy_(buffer[indexes])
+            # def pack():
+            #     """Packs a list of tensors into one buffer for sending to other workers"""
+            #     buffer = torch.cat([t.view(-1) for t in self.tensors])  # copies
+            #     _, indexes = torch.topk(buffer**2, self.topK)
+            #     self.send_indexes.copy_(indexes)
+            #     self.send_messages.copy_(buffer[indexes])
 
-            def unpack():
-                """Provides pointers to tensors of original `shapes` in a flat-packed buffer."""
-                self.tensors_buffer.zero_()
-                for rank in range(self.works):
-                    start = rank * self.topK
-                    end = start + self.topK
-                    self.tensors_buffer[self.recv_indexes[start:end]] += (self.recv_messages[start:end])
-                self.tensors_buffer.div_(self.works)
+            # def unpack():
+            #     """Provides pointers to tensors of original `shapes` in a flat-packed buffer."""
+            #     self.tensors_buffer.zero_()
+            #     for rank in range(self.works):
+            #         start = rank * self.topK
+            #         end = start + self.topK
+            #         self.tensors_buffer[self.recv_indexes[start:end]] += (self.recv_messages[start:end])
+            #     self.tensors_buffer.div_(self.works)
 
-            def test():
-                print("----SparseInplaceAlgorithmImpl init_post_backward_hook rank: {}, step: {}, tensors_buffer == other_tensor: {}, tensors_buffer nonzero size: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, torch.equal(self.tensors_buffer, self.other_tensor_buffer), self.tensors_buffer.count_nonzero().item()))
+            # def test():
+            #     print("----SparseInplaceAlgorithmImpl init_post_backward_hook rank: {}, step: {}, tensors_buffer == other_tensor: {}, tensors_buffer nonzero size: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, torch.equal(self.tensors_buffer, self.other_tensor_buffer), self.tensors_buffer.count_nonzero().item()))
 
-            pack()
-            bagua.allgather(self.send_indexes, self.recv_indexes)
-            bagua.allgather(self.send_messages, self.recv_messages)
-            torch.cuda.synchronize()
-            unpack()
-            test()
+            def unpack2tensors():
+                size = 0
+                for tensor in self.tensors:
+                    shape = tensor.shape
+                    count = tensor.numel()
+                    tmp_buffer = self.other_tensor_buffer[size:count+size]
+                    tmp_tensor = tensor.view(-1)
+                    tmp_tensor[tmp_buffer.nonzero()] = 0
+                    tmp_tensor.add_(tmp_buffer)
+                    size += count
+
+            # pack()
+            # bagua.allgather(self.send_indexes, self.recv_indexes)
+            # bagua.allgather(self.send_messages, self.recv_messages)
+            # torch.cuda.synchronize()
+            # unpack()
+            # test()
+            unpack2tensors()
 
         return hook
     
