@@ -152,14 +152,14 @@ extern "C" {
         N: i32,
         stream: *const c_void,
     );
-    pub fn sparse_inplace_extract_host(
+    pub fn sparse_extract_host(
         input: *mut c_void,
         index: *mut c_void,
         index_num_element: i32,
         output: *mut c_void,
         stream: *const c_void,
     );
-    pub fn sparse_inplace_gather_host(
+    pub fn sparse_gather_host(
         input: *mut c_void,
         index: *mut c_void,
         index_num_element: i32,

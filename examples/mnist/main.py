@@ -444,6 +444,9 @@ def main():
     elif args.algorithm == "sparse":
         from bagua.torch_api.algorithms import sparse
         algorithm = sparse.SparseAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-test":
+        from sparsepy import sparse_test
+        algorithm = sparse_test.SparseAlgorithm(optimizer=optimizer)
     elif args.algorithm == "sparse-test-inplace":
         from sparsepy import sparse_test
         algorithm = sparse_test.SparseInplaceAlgorithm(optimizer=optimizer)

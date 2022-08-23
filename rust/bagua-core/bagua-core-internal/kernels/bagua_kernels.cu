@@ -545,7 +545,7 @@ decompress_half_to_float(half *input, size_t input_size, int chunk_size, int chu
 }
 
 __global__ void
-sparse_inplace_extract(const float *input, const int *index, int index_num_element, float *output) {
+sparse_extract(const float *input, const int *index, int index_num_element, float *output) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int idy = blockIdx.y * blockDim.y + threadIdx.y;
     const int stride = blockDim.x * gridDim.x;
@@ -557,7 +557,7 @@ sparse_inplace_extract(const float *input, const int *index, int index_num_eleme
 }
 
 __global__ void
-sparse_inplace_gather(const float *input, const int *index, int index_num_element, float *output, int output_num_element) {
+sparse_gather(const float *input, const int *index, int index_num_element, float *output, int output_num_element) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int idy = blockIdx.y * blockDim.y + threadIdx.y;
     const int stride = blockDim.x * gridDim.x;
@@ -809,14 +809,14 @@ size_t array_min_max_size_f16_host(half *input, int input_num_element, half *out
     return array_min_max_size(input, input_num_element, output, stream);
 }
 
-void sparse_inplace_extract_host(float *input, int *index, int index_num_element, float *output, cudaStream_t stream) {
-    sparse_inplace_extract<<<1, 1, 0, stream>>>(input, index, index_num_element, output);
+void sparse_extract_host(float *input, int *index, int index_num_element, float *output, cudaStream_t stream) {
+    sparse_extract<<<1, 1, 0, stream>>>(input, index, index_num_element, output);
     CUDACHECK(cudaGetLastError());
 }
 
-void sparse_inplace_gather_host(float *input, int *index, int index_num_element, float *output, int output_num_element, cudaStream_t stream) {
+void sparse_gather_host(float *input, int *index, int index_num_element, float *output, int output_num_element, cudaStream_t stream) {
     // CUDACHECK(cudaMemset(output_array, 0.0f, total_num * sizeof(float)));
-    sparse_inplace_gather<<<1, 1, 0, stream>>>(input, index, index_num_element, output, output_num_element);
+    sparse_gather<<<1, 1, 0, stream>>>(input, index, index_num_element, output, output_num_element);
     CUDACHECK(cudaGetLastError());
 }
 
