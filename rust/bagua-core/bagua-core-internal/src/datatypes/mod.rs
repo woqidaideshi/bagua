@@ -1,5 +1,5 @@
 use crate::comm_ops::centralized_full_precision_synchronous::CentralizedFullPrecisionSynchronous;
-use crate::comm_ops::centralized_full_precision_sparse_synchronous::CentralizedFullPrecisionSparseSynchronous;
+use crate::comm_ops::centralized_full_precision_sparse_inplace_synchronous::CentralizedFullPrecisionSparseInplaceSynchronous;
 use crate::comm_ops::centralized_low_precision_synchronous::CentralizedLowPrecisionSynchronous;
 use crate::comm_ops::decentralized_full_precision_asynchronous::DecentralizedFullPrecisionAsynchronous;
 use crate::comm_ops::decentralized_full_precision_synchronous::{
@@ -1598,7 +1598,7 @@ impl BaguaBucket {
 
     /// this function will use communicator_internode to communicate.
     /// if hierarchical = True, it will do hierarchical communicator, this requires intranode communicator on each node and inter node communicator on leader GPU. leader GPU will be the GPU whose communicator_intranode rank is 0
-    pub fn append_centralized_sparse_synchronous_op(
+    pub fn append_centralized_sparse_inplace_synchronous_op(
         &mut self,
         communicator_internode: Option<&BaguaSingleCommunicator>,
         communicator_intranode: Option<&BaguaSingleCommunicator>,
@@ -1609,7 +1609,7 @@ impl BaguaBucket {
         let communicator =
             BaguaCommunicator::new(communicator_internode, communicator_intranode, hierarchical)
                 .expect("cannot create communicator");
-        let comm_op = Arc::new(CentralizedFullPrecisionSparseSynchronous {
+        let comm_op = Arc::new(CentralizedFullPrecisionSparseInplaceSynchronous {
             communicator,
             other_tensor,
         });

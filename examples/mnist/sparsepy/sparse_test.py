@@ -33,7 +33,7 @@ def topk(vec, k):
     # ret.copy_(vec[topkIndices])
     return topkIndices, vec[topkIndices]
 
-class SparseAlgorithmImpl(AlgorithmImpl):
+class SparseInplaceAlgorithmImpl(AlgorithmImpl):
     def __init__(
         self,
         process_group: BaguaProcessGroup,
@@ -52,7 +52,7 @@ class SparseAlgorithmImpl(AlgorithmImpl):
             optimizer (Optimizer): A torch Optimizer initialized with model parameters.
             topK:.
         """
-        super(SparseAlgorithmImpl, self).__init__(process_group)
+        super(SparseInplaceAlgorithmImpl, self).__init__(process_group)
         self.hierarchical = hierarchical
         self.communication_interval = communication_interval
         self.cuda_event = torch.cuda.Event()
@@ -70,7 +70,12 @@ class SparseAlgorithmImpl(AlgorithmImpl):
             self.topK = self.param_size // 100
         elif self.topK > self.param_size:
             self.topK = self.param_size
+        self.recv_messages = torch.zeros(self.topK*self.works, dtype=torch.float32).cuda()
+        self.recv_indexes = torch.zeros(self.topK*self.works, dtype=torch.int64).cuda()
+        self.send_messages = torch.zeros(self.topK, dtype=torch.float32).cuda()
+        self.send_indexes = torch.zeros(self.topK, dtype=torch.int64).cuda()
         self.tensors_buffer = torch.zeros(self.param_size, dtype=torch.float32).cuda()
+        self.other_tensor_buffer = torch.zeros(self.param_size, dtype=torch.float32).cuda()
         logging.info("---------param_size: {}, topK: {}".format(self.param_size, self.topK))
 
     def _should_communicate(self, bagua_ddp: BaguaDistributedDataParallel) -> bool:
@@ -83,10 +88,8 @@ class SparseAlgorithmImpl(AlgorithmImpl):
         for name, param in parameters:
             param.bagua_ensure_grad()
             self.tensors.append(param.grad)
-        # self.send_indexes.tensors_other = torch.cat([t.view(-1) for t in self.tensors])
         name, param = parameters[-1]
         param.index_tensor = torch.zeros(self.topK, dtype=torch.int64).cuda()
-        # param.index_tensor = torch.zeros(self.topK, dtype=torch.float32).cuda()
         
         self.index_tensor = param.ensure_bagua_tensor(
             name,
@@ -101,21 +104,6 @@ class SparseAlgorithmImpl(AlgorithmImpl):
     def tensors_to_buckets(
         self, tensors: List[List[BaguaTensor]], do_flatten: bool
     ) -> List[BaguaBucket]:
-        # bagua_buckets = []
-        # for idx, bucket in enumerate(tensors):
-        #     bagua_bucket = BaguaBucket(
-        #         bucket, flatten=do_flatten, name=str(idx)
-        #     )  # TODO: check duplicated names
-        #     bagua_buckets.append(bagua_bucket)
-        #     # bagua_bucket_other = []
-        #     # for bucket_per in bucket:
-        #     #     if hasattr(bucket_per, "other"):
-        #     #         bagua_bucket_other.append(bucket_per.other)
-        #     # if bagua_bucket_other:
-        #     #     bagua_bucket.other = BaguaBucket(
-        #     #         bagua_bucket_other, flatten=do_flatten, name=str(idx)
-        #     #     )
-        # return bagua_buckets
         all_tensors = []
         for idx, bucket in enumerate(tensors):
             all_tensors.extend(bucket)
@@ -133,14 +121,6 @@ class SparseAlgorithmImpl(AlgorithmImpl):
     def init_backward_hook(self, bagua_ddp: BaguaDistributedDataParallel):
         def hook(parameter_name, parameter):
             pass
-            # if parameter_name in self._communication_tensor_names:
-            # #     assert (
-            # #         parameter.bagua_backend_tensor().data_ptr()
-            # #         == parameter.data_ptr()
-            # #     ), "bagua backend tensor data_ptr should match parameter grad"
-            # #     parameter.bagua_mark_communication_ready()
-            #     logging.info("---------------parameter_name: {}.".format(parameter_name))
-            #     parameter.bagua_mark_communication_ready()
 
         return hook
 
@@ -148,9 +128,6 @@ class SparseAlgorithmImpl(AlgorithmImpl):
         def hook():
             self.index_tensor.bagua_mark_communication_ready()
             bagua_ddp._bagua_backend.wait_pending_comm_ops()
-            return
-            if not self._should_communicate(bagua_ddp):
-                return
             def pack():
                 """Packs a list of tensors into one buffer for sending to other workers"""
                 buffer = torch.cat([t.view(-1) for t in self.tensors])  # copies
@@ -165,42 +142,17 @@ class SparseAlgorithmImpl(AlgorithmImpl):
                     start = rank * self.topK
                     end = start + self.topK
                     self.tensors_buffer[self.recv_indexes[start:end]] += (self.recv_messages[start:end])
-                self.tensors_buffer.div_(self.works)
-                unpack2tensors()
-            
-            def unpack2tensors():
-                size = 0
-                nonzero = 0
-                nonzero1 = 0
-                for tensor in self.tensors:
-                    shape = tensor.shape
-                    count = tensor.numel()
-                    tmp_buffer = self.tensors_buffer[size:count+size]
-                    tmp_tensor = tensor.view(-1)
-                    tmp_tensor[tmp_buffer.nonzero()] = 0
-                    tmp_tensor.add_(tmp_buffer)
-                    nonzero += tmp_buffer.count_nonzero().item()
-                    nonzero1 += tmp_tensor.count_nonzero().item()
-                    size += count
-                # logging.info("-----rank: {}, tensors_buffer nonzero size: {}, tmp_tensor nonzero size: {}.".format(self.rank, nonzero, nonzero1))
-
+                # self.tensors_buffer.div_(self.works)
 
             def test():
-                nonzero = 0
-                for group in self.optimizer.param_groups:
-                    for param in group["params"]:
-                        nonzero += param.grad.count_nonzero().item()
-                nonzero1 = 0
-                for tensor in self.tensors:
-                    nonzero1 += tensor.count_nonzero().item()
-                logging.info("-----rank: {}, grad nonzero size: {}, self.tensors nonzero size: {}.".format(self.rank, nonzero, nonzero1))
-                
+                print("----SparseInplaceAlgorithmImpl init_post_backward_hook rank: {}, step: {}, tensors_buffer == other_tensor: {}, tensors_buffer nonzero size: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, torch.equal(self.tensors_buffer, self.other_tensor_buffer), self.tensors_buffer.count_nonzero().item()))
+
             pack()
             bagua.allgather(self.send_indexes, self.recv_indexes)
             bagua.allgather(self.send_messages, self.recv_messages)
             torch.cuda.synchronize()
             unpack()
-            # test()
+            test()
 
         return hook
     
@@ -215,7 +167,7 @@ class SparseAlgorithmImpl(AlgorithmImpl):
         bagua_ddp: BaguaDistributedDataParallel,
         bucket: BaguaBucket,
     ):
-        bucket._other_tensor = self.tensors_buffer.ensure_bagua_tensor(
+        bucket._other_tensor = self.other_tensor_buffer.ensure_bagua_tensor(
             "other_tensor", bagua_ddp.bagua_module_name
         )
         torch.cuda.synchronize()
@@ -233,10 +185,6 @@ class SparseAlgorithmImpl(AlgorithmImpl):
                     count_origin += tensor.numel()
                     count_origin_nonzero += tensor.count_nonzero().item()
                 bucket._other_tensor.bagua_getter_closure().copy_(buffer)
-                print("----SparseAlgorithmImpl set_index rank: {}, step: {}, index_size: {}, count: {}, count_nonzero: {}, count_other: {}, count_other_nonzero: {}, count_origin: {}, count_origin_nonzero: {}, other: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, self.topK, indexes.numel(), indexes.count_nonzero().item(), buffer.numel(), buffer.count_nonzero().item(), count_origin, count_origin_nonzero, bucket._other_tensor.bagua_getter_closure().count_nonzero().item()))
-                # print("----SparseAlgorithmImpl set_index rank: {}, step: {}, gradient: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, buffer))
-                print("----SparseAlgorithmImpl set_index rank: {}, step: {}, value: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, buffer[indexes]))
-                print("----SparseAlgorithmImpl set_index rank: {}, step: {}, index: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, indexes))
 
         def log_func(*args):
             count = 0
@@ -253,34 +201,32 @@ class SparseAlgorithmImpl(AlgorithmImpl):
             if hasattr(bucket, "_other_tensor"):
                 count_other += bucket._other_tensor.bagua_getter_closure().numel()
                 count_other_nonzero += bucket._other_tensor.bagua_getter_closure().count_nonzero().item()
-            # print("----SparseAlgorithmImpl log_func rank: {}, step: {}, index_size: {}, count: {}, count_nonzero: {}, count_other: {}, count_other_nonzero: {}, count_origin: {}, count_origin_nonzero: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, self.topK, count, count_nonzero, count_other, count_other_nonzero, count_origin, count_origin_nonzero))
-            # print("----SparseAlgorithmImpl log_func rank: {}, step: {}, index: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, bucket.tensors[0].bagua_getter_closure()))
             buffer = torch.cat([t.view(-1) for t in self.tensors])  # copies
             # real_grad = buffer.clone().detach()
             real_grad = torch.zeros_like(buffer)
             _, _indexes = torch.topk(buffer**2, self.topK)
             real_grad[_indexes]= buffer[_indexes] # += values
             print("--------------rank: {}, step: {}, bucker.index_tensor == _indexes = {},\
-               other_tensor == buffer_gradient: {}, other_tensor == real_grad: {}, other_tensor.nonzeor: {}, \
+               other_tensor == buffer_gradient: {}, other_tensor == real_grad: {},  self.other_tensor_buffer == real_grad: {}, other_tensor.nonzeor: {}, \
                buffer_gradient nonzero: {}!!!".format(self.rank, bagua_ddp.bagua_train_step_counter, 
                torch.equal(bucket.tensors[0].bagua_getter_closure(), _indexes),
                torch.equal(bucket._other_tensor.bagua_getter_closure(), buffer),
                torch.equal(bucket._other_tensor.bagua_getter_closure(), real_grad),
+               torch.equal(self.other_tensor_buffer, real_grad),
                bucket._other_tensor.bagua_getter_closure().count_nonzero().item(),
                buffer.count_nonzero().item()))
-            print("----SparseAlgorithmImpl log_func rank: {}, step: {}, after value: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, bucket._other_tensor.bagua_getter_closure()))
 
 
         bucket.append_python_op(set_index, group=self.process_group)
         bucket.append_python_op(log_func, group=self.process_group)
-        bucket.append_centralized_sparse_synchronous_op(
+        bucket.append_centralized_sparse_inplace_synchronous_op(
             other_tensor=bucket._other_tensor,
             hierarchical=False,
             group=self.process_group,
         )
         bucket.append_python_op(log_func, group=self.process_group)
 
-class SparseAlgorithm(Algorithm):
+class SparseInplaceAlgorithm(Algorithm):
     def __init__(
         self,
         hierarchical: bool = True,
@@ -301,8 +247,8 @@ class SparseAlgorithm(Algorithm):
         self.optimizer = optimizer
         self.topK = topK
 
-    def reify(self, process_group: BaguaProcessGroup) -> SparseAlgorithmImpl:
-        return SparseAlgorithmImpl(
+    def reify(self, process_group: BaguaProcessGroup) -> SparseInplaceAlgorithmImpl:
+        return SparseInplaceAlgorithmImpl(
             process_group,
             hierarchical=self.hierarchical,
             communication_interval=self.communication_interval,

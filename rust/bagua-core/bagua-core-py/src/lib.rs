@@ -503,7 +503,7 @@ impl BaguaBucketPy {
     /// this function will use communicator_internode to communicate.
     /// if hierarchical = True, it will do hierarchical communicator, this requires intranode communicator on each node and inter node communicator on leader GPU. leader GPU will be the GPU whose communicator_intranode rank is 0
     #[args(hierarchical = "false")]
-    pub fn append_centralized_sparse_synchronous_op(
+    pub fn append_centralized_sparse_inplace_synchronous_op(
         &mut self,
         communicator_internode: Option<&BaguaSingleCommunicatorPy>,
         communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
@@ -511,7 +511,7 @@ impl BaguaBucketPy {
         compression: Option<String>,
         other_tensor: PyRef<BaguaTensorPy>,
     ) -> PyResult<()> {
-        self.inner.append_centralized_sparse_synchronous_op(
+        self.inner.append_centralized_sparse_inplace_synchronous_op(
             communicator_internode.map(|x| &x.inner),
             communicator_intranode.map(|x| &x.inner),
             hierarchical,

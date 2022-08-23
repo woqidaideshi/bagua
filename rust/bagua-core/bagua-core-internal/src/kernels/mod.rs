@@ -152,25 +152,19 @@ extern "C" {
         N: i32,
         stream: *const c_void,
     );
-    pub fn index_array_host(
+    pub fn sparse_inplace_extract_host(
         input: *mut c_void,
         index: *mut c_void,
         index_num_element: i32,
         output: *mut c_void,
         stream: *const c_void,
     );
-    pub fn array_index_host(
+    pub fn sparse_inplace_gather_host(
         input: *mut c_void,
         index: *mut c_void,
         index_num_element: i32,
         output: *mut c_void,
         total_num: i32,
-        stream: *const c_void,
-    );
-    pub fn test_array_host(
-        input: *mut c_void,
-        index_num_element: i32,
-        output: *mut c_void,
         stream: *const c_void,
     );
 }

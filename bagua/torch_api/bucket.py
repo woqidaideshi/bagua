@@ -266,7 +266,7 @@ class BaguaBucket:
                 compression=compression,
             )
 
-    def append_centralized_sparse_synchronous_op(
+    def append_centralized_sparse_inplace_synchronous_op(
         self,
         other_tensor: BaguaTensor,
         hierarchical: bool = False,
@@ -276,10 +276,8 @@ class BaguaBucket:
         if group is None:
             group = _get_default_group()
 
-        print("----append_centralized_sparse_synchronous_op.")
-
         if hierarchical:
-            self.backend_bucket.append_centralized_sparse_synchronous_op(
+            self.backend_bucket.append_centralized_sparse_inplace_synchronous_op(
                 _bagua_backend_comm(group.get_inter_node_communicator()),
                 _bagua_backend_comm(group.get_intra_node_communicator()),
                 hierarchical=hierarchical,
@@ -287,7 +285,7 @@ class BaguaBucket:
                 other_tensor=other_tensor.bagua_backend_tensor(),
             )
         else:
-            self.backend_bucket.append_centralized_sparse_synchronous_op(
+            self.backend_bucket.append_centralized_sparse_inplace_synchronous_op(
                 _bagua_backend_comm(group.get_global_communicator()),
                 None,
                 hierarchical=hierarchical,
