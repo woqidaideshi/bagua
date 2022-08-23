@@ -99,7 +99,6 @@ class SparseAlgorithmImpl(AlgorithmImpl):
             setter_closure=lambda param, t: setattr(param, "index_tensor", t),
         )
         self._communication_tensor_names = set((name,))
-        logging.info("-------------init tensors.")
         return [self.index_tensor]
 
     def tensors_to_buckets(
@@ -110,7 +109,6 @@ class SparseAlgorithmImpl(AlgorithmImpl):
             all_tensors.extend(bucket)
 
         bagua_bucket = BaguaBucket(all_tensors, flatten=do_flatten, name=str(0))
-        logging.info("-------------tensors_to_buckets.")
         return [bagua_bucket]
 
     def init_forward_pre_hook(self, bagua_ddp: BaguaDistributedDataParallel):
@@ -143,7 +141,7 @@ class SparseAlgorithmImpl(AlgorithmImpl):
                     start = rank * self.topK
                     end = start + self.topK
                     self.tensors_buffer[self.recv_indexes[start:end]] += (self.recv_messages[start:end])
-                # self.tensors_buffer.div_(self.works)
+                self.tensors_buffer.div_(self.works)
 
             def test():
                 print("----SparseAlgorithmImpl init_post_backward_hook rank: {}, step: {}, tensors_buffer == other_tensor: {}, tensors_buffer nonzero size: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, torch.equal(self.tensors_buffer, self.other_tensor_buffer), self.tensors_buffer.count_nonzero().item()))
@@ -175,7 +173,6 @@ class SparseAlgorithmImpl(AlgorithmImpl):
             "value_tensor", bagua_ddp.bagua_module_name
         )
         torch.cuda.synchronize()
-        logging.info("-------------init_operations.")
         bucket.clear_ops()
         def set_index(*args):
             if hasattr(bucket, "_other_tensor"):
@@ -297,7 +294,6 @@ class SparseInplaceAlgorithmImpl(AlgorithmImpl):
             setter_closure=lambda param, t: setattr(param, "index_tensor", t),
         )
         self._communication_tensor_names = set((name,))
-        logging.info("-------------init tensors.")
         return [self.index_tensor]
 
     def tensors_to_buckets(
@@ -308,7 +304,6 @@ class SparseInplaceAlgorithmImpl(AlgorithmImpl):
             all_tensors.extend(bucket)
 
         bagua_bucket = BaguaBucket(all_tensors, flatten=do_flatten, name=str(0))
-        logging.info("-------------tensors_to_buckets.")
         return [bagua_bucket]
 
     def init_forward_pre_hook(self, bagua_ddp: BaguaDistributedDataParallel):
@@ -341,7 +336,7 @@ class SparseInplaceAlgorithmImpl(AlgorithmImpl):
                     start = rank * self.topK
                     end = start + self.topK
                     self.tensors_buffer[self.recv_indexes[start:end]] += (self.recv_messages[start:end])
-                # self.tensors_buffer.div_(self.works)
+                self.tensors_buffer.div_(self.works)
 
             def test():
                 print("----SparseInplaceAlgorithmImpl init_post_backward_hook rank: {}, step: {}, tensors_buffer == other_tensor: {}, tensors_buffer nonzero size: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, torch.equal(self.tensors_buffer, self.other_tensor_buffer), self.tensors_buffer.count_nonzero().item()))
@@ -370,7 +365,6 @@ class SparseInplaceAlgorithmImpl(AlgorithmImpl):
             "other_tensor", bagua_ddp.bagua_module_name
         )
         torch.cuda.synchronize()
-        logging.info("-------------init_operations.")
         bucket.clear_ops()
         def set_index(*args):
             if hasattr(bucket, "_other_tensor"):

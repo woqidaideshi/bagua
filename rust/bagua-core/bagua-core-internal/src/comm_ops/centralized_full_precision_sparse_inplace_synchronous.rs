@@ -94,6 +94,8 @@ impl CommOpTrait for CentralizedFullPrecisionSparseInplaceSynchronous {
                     );
                 }
 
+                other_tensor_raw.divide_inplace(c.stream_ptr, c.nranks as f32);
+
                 tracing::debug!("internode communication done")
             },
         );
