@@ -232,14 +232,14 @@ class SparseAlgorithmImpl(AlgorithmImpl):
 
 
         bucket.append_python_op(set_index, group=self.process_group)
-        bucket.append_python_op(log_func, group=self.process_group)
+        # bucket.append_python_op(log_func, group=self.process_group)
         bucket.append_centralized_sparse_synchronous_op(
             value_tensor=bucket._value_tensor,
             other_tensor=bucket._other_tensor,
             hierarchical=False,
             group=self.process_group,
         )
-        bucket.append_python_op(log_func, group=self.process_group)
+        # bucket.append_python_op(log_func, group=self.process_group)
 
 class SparseInplaceAlgorithmImpl(AlgorithmImpl):
     def __init__(
@@ -435,13 +435,13 @@ class SparseInplaceAlgorithmImpl(AlgorithmImpl):
 
 
         bucket.append_python_op(set_index, group=self.process_group)
-        bucket.append_python_op(log_func, group=self.process_group)
+        # bucket.append_python_op(log_func, group=self.process_group)
         bucket.append_centralized_sparse_inplace_synchronous_op(
             other_tensor=bucket._other_tensor,
             hierarchical=False,
             group=self.process_group,
         )
-        bucket.append_python_op(log_func, group=self.process_group)
+        # bucket.append_python_op(log_func, group=self.process_group)
 
 class SparseAlgorithm(Algorithm):
     def __init__(
