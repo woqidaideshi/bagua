@@ -450,6 +450,9 @@ def main():
     elif args.algorithm == "sparse-test-inplace":
         from sparsepy import sparse_test
         algorithm = sparse_test.SparseInplaceAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-py":
+        from sparsepy import sparse_test
+        algorithm = sparse_test.SparsePyAlgorithm(optimizer=optimizer)
     else:
         raise NotImplementedError
 

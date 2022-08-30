@@ -50,6 +50,7 @@ python -m bagua.distributed.launch --nproc_per_node=1 main.py --algorithm sparse
 
 python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparse-test > log/sparsepy/sparse-test-20220823.log
 
+python -m bagua.distributed.launch --nproc_per_node=1 main.py --algorithm sparse-py > log/sparsepy/sparse-test-20220830.log
 
 sketch:
 python -m bagua.distributed.launch --nproc_per_node=2 main.py --algorithm gradient_allreduce_sketch > /dev/null
