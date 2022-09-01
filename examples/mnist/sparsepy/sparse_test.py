@@ -104,11 +104,11 @@ class SparsePyIndependAlgorithmImpl(AlgorithmImpl):
             tensors.append(param)
             param.tensors_value = torch.zeros(param.numel(), dtype=torch.float32).cuda()
 
-            param.recv_messages = torch.zeros(param.topK*self.works, dtype=torch.float32).cuda()
-            param.recv_indexes = torch.zeros(param.topK*self.works, dtype=torch.int64).cuda()
-            param.send_messages = torch.zeros(param.topK, dtype=torch.float32).cuda()
-            param.send_indexes = torch.zeros(param.topK, dtype=torch.int64).cuda()
-            param.tensors_buffer = torch.zeros(param.numel(), dtype=torch.float32).cuda()
+            # param.recv_messages = torch.zeros(param.topK*self.works, dtype=torch.float32).cuda()
+            # param.recv_indexes = torch.zeros(param.topK*self.works, dtype=torch.int64).cuda()
+            # param.send_messages = torch.zeros(param.topK, dtype=torch.float32).cuda()
+            # param.send_indexes = torch.zeros(param.topK, dtype=torch.int64).cuda()
+            # param.tensors_buffer = torch.zeros(param.numel(), dtype=torch.float32).cuda()
 
         self._communication_tensor_names = set(name for name, _ in parameters)
         assert len(self._communication_tensor_names) == len(
@@ -153,28 +153,28 @@ class SparsePyIndependAlgorithmImpl(AlgorithmImpl):
     def init_post_backward_hook(self, bagua_ddp: BaguaDistributedDataParallel):
         def hook():
             bagua_ddp._bagua_backend.wait_pending_comm_ops()
-            def compare_tmp():
-                for group in self.optimizer.param_groups:
-                    for param in group["params"]:
-                        if param.is_bagua_tensor():
-                            buffer = param.grad_clone.view(-1)
-                            _, indexes = torch.topk(buffer**2, param.topK)
-                            param.send_indexes.copy_(indexes)
-                            param.send_messages.copy_(buffer[indexes])
-                            bagua.allgather(param.send_indexes, param.recv_indexes)
-                            bagua.allgather(param.send_messages, param.recv_messages)
-                            torch.cuda.synchronize()
-                            param.tensors_buffer.zero_()
-                            for rank in range(self.works):
-                                start = rank * param.topK
-                                end = start + param.topK
-                                param.tensors_buffer[param.recv_indexes[start:end]] += param.recv_messages[start:end]
-                            param.tensors_buffer.div_(self.works)
-                            buffer[param.tensors_buffer.nonzero()] = 0.0
-                            buffer.add_(param.tensors_buffer)
-                            print("----SparsePy2AlgorithmImpl init_post_backward_hook rank: {}, step: {}, grad_clone == grad: {}, grad nonzero size: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, torch.equal(param.grad_clone, param.grad), param.grad.count_nonzero().item()))
+            # def compare_tmp():
+            #     for group in self.optimizer.param_groups:
+            #         for param in group["params"]:
+            #             if param.is_bagua_tensor():
+            #                 buffer = param.grad_clone.view(-1)
+            #                 _, indexes = torch.topk(buffer**2, param.topK)
+            #                 param.send_indexes.copy_(indexes)
+            #                 param.send_messages.copy_(buffer[indexes])
+            #                 bagua.allgather(param.send_indexes, param.recv_indexes)
+            #                 bagua.allgather(param.send_messages, param.recv_messages)
+            #                 torch.cuda.synchronize()
+            #                 param.tensors_buffer.zero_()
+            #                 for rank in range(self.works):
+            #                     start = rank * param.topK
+            #                     end = start + param.topK
+            #                     param.tensors_buffer[param.recv_indexes[start:end]] += param.recv_messages[start:end]
+            #                 param.tensors_buffer.div_(self.works)
+            #                 buffer[param.tensors_buffer.nonzero()] = 0.0
+            #                 buffer.add_(param.tensors_buffer)
+            #                 print("----SparsePy2AlgorithmImpl init_post_backward_hook rank: {}, step: {}, grad_clone == grad: {}, grad nonzero size: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, torch.equal(param.grad_clone, param.grad), param.grad.count_nonzero().item()))
 
-            compare_tmp()
+            # compare_tmp()
         return hook
 
     def init_post_optimizer_step_hook(self, bagua_ddp: BaguaDistributedDataParallel):
@@ -207,7 +207,7 @@ class SparsePyIndependAlgorithmImpl(AlgorithmImpl):
             tensor.bagua_getter_closure().copy_(indexes)
             bucket._send_value.bagua_getter_closure().copy_(buffer[indexes])
 
-            tensor.grad_clone = tensor.grad.clone().detach()
+            # tensor.grad_clone = tensor.grad.clone().detach()
 
         def get_index(*args):
             recv_index = bucket._recv_index.bagua_getter_closure()
@@ -731,11 +731,11 @@ class SparseIndependAlgorithmImpl(AlgorithmImpl):
             )
             tensors.append(param)
 
-            param.recv_messages = torch.zeros(param.topK*self.works, dtype=torch.float32).cuda()
-            param.recv_indexes = torch.zeros(param.topK*self.works, dtype=torch.int64).cuda()
-            param.send_messages = torch.zeros(param.topK, dtype=torch.float32).cuda()
-            param.send_indexes = torch.zeros(param.topK, dtype=torch.int64).cuda()
-            param.tensors_buffer = torch.zeros(param.numel(), dtype=torch.float32).cuda()
+            # param.recv_messages = torch.zeros(param.topK*self.works, dtype=torch.float32).cuda()
+            # param.recv_indexes = torch.zeros(param.topK*self.works, dtype=torch.int64).cuda()
+            # param.send_messages = torch.zeros(param.topK, dtype=torch.float32).cuda()
+            # param.send_indexes = torch.zeros(param.topK, dtype=torch.int64).cuda()
+            # param.tensors_buffer = torch.zeros(param.numel(), dtype=torch.float32).cuda()
 
         self._communication_tensor_names = set(name for name, _ in parameters)
         assert len(self._communication_tensor_names) == len(
@@ -780,28 +780,28 @@ class SparseIndependAlgorithmImpl(AlgorithmImpl):
     def init_post_backward_hook(self, bagua_ddp: BaguaDistributedDataParallel):
         def hook():
             bagua_ddp._bagua_backend.wait_pending_comm_ops()
-            def compare_tmp():
-                for group in self.optimizer.param_groups:
-                    for param in group["params"]:
-                        if param.is_bagua_tensor():
-                            buffer = param.grad_clone.view(-1)
-                            _, indexes = torch.topk(buffer**2, param.topK)
-                            param.send_indexes.copy_(indexes)
-                            param.send_messages.copy_(buffer[indexes])
-                            bagua.allgather(param.send_indexes, param.recv_indexes)
-                            bagua.allgather(param.send_messages, param.recv_messages)
-                            torch.cuda.synchronize()
-                            param.tensors_buffer.zero_()
-                            for rank in range(self.works):
-                                start = rank * param.topK
-                                end = start + param.topK
-                                param.tensors_buffer[param.recv_indexes[start:end]] += param.recv_messages[start:end]
-                            param.tensors_buffer.div_(self.works)
-                            buffer[param.tensors_buffer.nonzero()] = 0.0
-                            buffer.add_(param.tensors_buffer)
-                            print("----SparsePy2AlgorithmImpl init_post_backward_hook rank: {}, step: {}, grad_clone == grad: {}, grad nonzero size: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, torch.equal(param.grad_clone, param.grad), param.grad.count_nonzero().item()))
+            # def compare_tmp():
+            #     for group in self.optimizer.param_groups:
+            #         for param in group["params"]:
+            #             if param.is_bagua_tensor():
+            #                 buffer = param.grad_clone.view(-1)
+            #                 _, indexes = torch.topk(buffer**2, param.topK)
+            #                 param.send_indexes.copy_(indexes)
+            #                 param.send_messages.copy_(buffer[indexes])
+            #                 bagua.allgather(param.send_indexes, param.recv_indexes)
+            #                 bagua.allgather(param.send_messages, param.recv_messages)
+            #                 torch.cuda.synchronize()
+            #                 param.tensors_buffer.zero_()
+            #                 for rank in range(self.works):
+            #                     start = rank * param.topK
+            #                     end = start + param.topK
+            #                     param.tensors_buffer[param.recv_indexes[start:end]] += param.recv_messages[start:end]
+            #                 param.tensors_buffer.div_(self.works)
+            #                 buffer[param.tensors_buffer.nonzero()] = 0.0
+            #                 buffer.add_(param.tensors_buffer)
+            #                 print("----SparsePy2AlgorithmImpl init_post_backward_hook rank: {}, step: {}, grad_clone == grad: {}, grad nonzero size: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, torch.equal(param.grad_clone, param.grad), param.grad.count_nonzero().item()))
 
-            compare_tmp()
+            # compare_tmp()
         return hook
 
     def init_post_optimizer_step_hook(self, bagua_ddp: BaguaDistributedDataParallel):
@@ -831,7 +831,7 @@ class SparseIndependAlgorithmImpl(AlgorithmImpl):
             bucket._other_tensor.bagua_getter_closure().zero_()
             bucket._value_tensor.bagua_getter_closure().copy_(buffer[indexes])
 
-            tensor.grad_clone = tensor.grad.clone().detach()
+            # tensor.grad_clone = tensor.grad.clone().detach()
 
         def get_index(*args):
             buffer = bucket.tensors[0].grad.view(-1)
