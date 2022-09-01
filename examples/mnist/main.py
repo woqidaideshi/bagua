@@ -456,6 +456,12 @@ def main():
     elif args.algorithm == "sparse-py2":
         from sparsepy import sparse_test
         algorithm = sparse_test.SparsePy2Algorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-test-independ":
+        from sparsepy import sparse_test
+        algorithm = sparse_test.SparseIndependAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-py-independ":
+        from sparsepy import sparse_test
+        algorithm = sparse_test.SparsePyIndependAlgorithm(optimizer=optimizer)
     else:
         raise NotImplementedError
 

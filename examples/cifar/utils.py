@@ -111,6 +111,16 @@ def get_optimizer_algorithm(model, args, optimizer = None):
         sys.path.append("../mnist/sparsepy")
         import sparse_test
         algorithm = sparse_test.SparsePy2Algorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-test-independ":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparse_test
+        algorithm = sparse_test.SparseIndependAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-py-independ":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparse_test
+        algorithm = sparse_test.SparsePyIndependAlgorithm(optimizer=optimizer)
     elif args.algorithm == "test":
         import sys
         sys.path.append("../mnist")

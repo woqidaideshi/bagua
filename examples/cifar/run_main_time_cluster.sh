@@ -23,3 +23,7 @@ sleep 5
 python -m bagua.distributed.launch --nproc_per_node=1 --nnodes=$nodes --node_rank=$node_rank --master_addr="172.31.21.207" --master_port=1234 main_time.py --algorithm sparse-py --lr 0.05 --epochs 20 > /dev/null
 sleep 5
 python -m bagua.distributed.launch --nproc_per_node=1 --nnodes=$nodes --node_rank=$node_rank --master_addr="172.31.21.207" --master_port=1234 main_time.py --algorithm sparse-py2 --lr 0.05 --epochs 20 > /dev/null
+sleep 5
+python -m bagua.distributed.launch --nproc_per_node=1 --nnodes=$nodes --node_rank=$node_rank --master_addr="172.31.21.207" --master_port=1234 main_time.py --algorithm sparse-py-independ --lr 0.05 --epochs 20 > /dev/null
+sleep 5
+python -m bagua.distributed.launch --nproc_per_node=1 --nnodes=$nodes --node_rank=$node_rank --master_addr="172.31.21.207" --master_port=1234 main_time.py --algorithm sparse-test-independ --lr 0.05 --epochs 20 > /dev/null

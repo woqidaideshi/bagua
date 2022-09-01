@@ -265,6 +265,16 @@ def main_worker(args):
         sys.path.append("../mnist/sparsepy")
         import sparse_test
         algorithm = sparse_test.SparsePy2Algorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-test-independ":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparse_test
+        algorithm = sparse_test.SparseIndependAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-py-independ":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparse_test
+        algorithm = sparse_test.SparsePyIndependAlgorithm(optimizer=optimizer)
     else:
         raise NotImplementedError
 
