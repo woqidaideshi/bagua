@@ -370,6 +370,9 @@ def main():
     elif args.algorithm == "sparse-py":
         from sparsepy import sparse_test
         algorithm = sparse_test.SparsePyAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-py2":
+        from sparsepy import sparse_test
+        algorithm = sparse_test.SparsePy2Algorithm(optimizer=optimizer)
     else:
         raise NotImplementedError
     
