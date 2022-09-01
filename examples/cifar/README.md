@@ -39,3 +39,5 @@ python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm s
 
 python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparse-test-inplace --lr 0.05 --epochs 50 > /dev/null
 python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparse-test --lr 0.05 --epochs 50 > /dev/null
+
+python -m bagua.distributed.launch --nproc_per_node=2 main.py --algorithm sparse-py --lr 0.05 --epochs 50 > /dev/null

@@ -218,7 +218,7 @@ def main():
     if bagua.get_rank() == 0:
         logging.getLogger().setLevel(logging.INFO)
     # logging.getLogger().setLevel(logging.INFO)
-    logging.info("----main start time: {} (rank {}).".format(start.strftime("%Y-%m-%d %H:%M:%S.%f"), bagua.get_rank()))
+    logging.info("----main start time: {} (rank {}), model name: {}.".format(start.strftime("%Y-%m-%d %H:%M:%S.%f"), bagua.get_rank(), args.model_name))
 
     train_kwargs = {"batch_size": args.batch_size}
     test_kwargs = {"batch_size": args.test_batch_size}

@@ -250,6 +250,16 @@ def main_worker(args):
             sync_interval_ms=args.async_sync_interval,
             warmup_steps=args.async_warmup_steps,
         )
+    elif args.algorithm == "test":
+        import sys
+        sys.path.append("../mnist")
+        import gradient_allreduce
+        algorithm = gradient_allreduce.GradientAllReduceAlgorithm()
+    elif args.algorithm == "sparse-py":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparse_test
+        algorithm = sparse_test.SparsePyAlgorithm(optimizer=optimizer)
     else:
         raise NotImplementedError
 
