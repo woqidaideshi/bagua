@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## [0.9.1] - 2022-09-09
+
+### Bug Fixes
+
+#### Python
+
+- Revert "fix: to_bagua_tensor compatibility with torch 1.6.0 (#355)"
+
+### Features
+
+#### Other
+
+- add a new AMI with bagua 0.9.0 (#556)
+- remove outdated AMI info in readme
+- remove chatting group info
+- update readme with pytorch lightning integration
+- ci: precompiled bagua-cuda116 (#635)
+
+#### Python, core
+
+- improve NCCL lib version check (#525)
+- add tests for pytorch-lightning bagua strategy (#526)
+- Remove dependency on `torch.testing.internal` package (#528)
+- update pytorch-lightning tests (#548)
+
 ## [0.9.0] - 2022-01-13
 
 ### Bug Fixes
