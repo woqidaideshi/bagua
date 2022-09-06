@@ -14,3 +14,4 @@ python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm s
 python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparse-py2 --epochs 20 > /dev/null
 python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparse-py-independ --epochs 20 > /dev/null
 python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparse-test-independ --epochs 20 > /dev/null
+python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm sparse-py-cuda --epochs 20 > /dev/null

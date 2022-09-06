@@ -7,6 +7,7 @@ pub mod centralized_middle_precision_synchronous;
 pub mod centralized_full_precision_sparse_synchronous;
 pub mod centralized_full_precision_sparse_inplace_synchronous;
 pub mod centralized_full_precision_sparse_py_synchronous;
+pub mod centralized_full_precision_sparse_py_cuda_synchronous;
 pub mod python_ffi_op;
 
 use crate::datatypes::BaguaBucket;

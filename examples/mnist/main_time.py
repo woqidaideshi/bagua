@@ -379,6 +379,9 @@ def main():
     elif args.algorithm == "sparse-py-independ":
         from sparsepy import sparse_test
         algorithm = sparse_test.SparsePyIndependAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-py-cuda":
+        from sparsepy import sparse_test
+        algorithm = sparse_test.SparsePyCudaAlgorithm(optimizer=optimizer)
     else:
         raise NotImplementedError
     
