@@ -52,6 +52,16 @@ impl CommOpTrait for CentralizedFullPrecisionSparsePyCudaSynchronous {
                 }
                 c.allgather(send_value_raw, recv_value_raw);
                 c.allgather(&mut t.raw, recv_index_raw);
+                // unsafe {
+                //     let dst = other_value_raw.data_ptr();
+                //     let count = other_value_raw.num_elements() * other_value_raw.dtype().bytes();
+                //     cpp::cpp!([stream_ptr as "cudaStream_t", dst as "void *", count as "size_t"]
+                //     {
+                //     CUDACHECK(cudaDeviceSynchronize());
+                //     CUDACHECK(cudaMemset(dst, 0.0f, count));
+                //     CUDACHECK(cudaDeviceSynchronize());
+                //     });
+                // }
                 unsafe {
                     kernels::sparse_gather_host(
                         recv_value_raw.data_ptr() as _,
