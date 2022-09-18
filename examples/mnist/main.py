@@ -465,6 +465,9 @@ def main():
     elif args.algorithm == "sparse-py-cuda":
         from sparsepy import sparse_test
         algorithm = sparse_test.SparsePyCudaAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-py-rust":
+        from sparsepy import sparse_test
+        algorithm = sparse_test.SparsePyRustAlgorithm(optimizer=optimizer)
     else:
         raise NotImplementedError
 

@@ -167,4 +167,19 @@ extern "C" {
         total_num: i32,
         stream: *const c_void,
     );
+    pub fn sparse_extract_cpp(
+        input: *mut c_void,
+        index: *mut c_void,
+        index_num_element: i32,
+        output: *mut c_void,
+        stream: *const c_void,
+    );
+    pub fn sparse_gather_cpp(
+        input: *mut c_void,
+        index: *mut c_void,
+        index_num_element: i32,
+        output: *mut c_void,
+        total_num: i32,
+        stream: *const c_void,
+    );
 }

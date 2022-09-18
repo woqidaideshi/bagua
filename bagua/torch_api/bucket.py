@@ -267,6 +267,42 @@ class BaguaBucket:
                 compression=compression,
             )
 
+    def append_centralized_sparse_py_rust_synchronous_op(
+        self,
+        recv_value: BaguaTensor,
+        recv_index: BaguaTensor,
+        send_value: BaguaTensor,
+        other_value: BaguaTensor,
+        hierarchical: bool = False,
+        compression: Optional[str] = None,
+        group: Optional[BaguaProcessGroup] = None,
+    ):
+        if group is None:
+            group = _get_default_group()
+
+        if hierarchical:
+            self.backend_bucket.append_centralized_sparse_py_rust_synchronous_op(
+                _bagua_backend_comm(group.get_inter_node_communicator()),
+                _bagua_backend_comm(group.get_intra_node_communicator()),
+                hierarchical=hierarchical,
+                compression=compression,
+                recv_value=recv_value.bagua_backend_tensor(),
+                recv_index=recv_index.bagua_backend_tensor(),
+                send_value=send_value.bagua_backend_tensor(),
+                other_value=other_value.bagua_backend_tensor(),
+            )
+        else:
+            self.backend_bucket.append_centralized_sparse_py_rust_synchronous_op(
+                _bagua_backend_comm(group.get_global_communicator()),
+                None,
+                hierarchical=hierarchical,
+                compression=compression,
+                recv_value=recv_value.bagua_backend_tensor(),
+                recv_index=recv_index.bagua_backend_tensor(),
+                send_value=send_value.bagua_backend_tensor(),
+                other_value=other_value.bagua_backend_tensor(),
+            )
+
     def append_centralized_sparse_py_cuda_synchronous_op(
         self,
         recv_value: BaguaTensor,

@@ -3,6 +3,7 @@ use crate::comm_ops::centralized_full_precision_sparse_synchronous::CentralizedF
 use crate::comm_ops::centralized_full_precision_sparse_inplace_synchronous::CentralizedFullPrecisionSparseInplaceSynchronous;
 use crate::comm_ops::centralized_full_precision_sparse_py_synchronous::CentralizedFullPrecisionSparsePySynchronous;
 use crate::comm_ops::centralized_full_precision_sparse_py_cuda_synchronous::CentralizedFullPrecisionSparsePyCudaSynchronous;
+use crate::comm_ops::centralized_full_precision_sparse_py_rust_synchronous::CentralizedFullPrecisionSparsePyRustSynchronous;
 use crate::comm_ops::centralized_low_precision_synchronous::CentralizedLowPrecisionSynchronous;
 use crate::comm_ops::decentralized_full_precision_asynchronous::DecentralizedFullPrecisionAsynchronous;
 use crate::comm_ops::decentralized_full_precision_synchronous::{
@@ -612,6 +613,195 @@ pub trait RawBaguaTensor: Debug {
             BaguaTensorDtype::U64 => {
                 unimplemented!()
             }
+        }
+    }
+
+    fn sparse_from_index(&self, index: &dyn RawBaguaTensor, output: &dyn RawBaguaTensor) {
+        assert_eq!(self.dtype(), output.dtype());
+        println!("sparse_from_index: {}, 0.", index.num_elements());
+
+        assert_eq!(index.num_elements(), output.num_elements());
+        println!("sparse_from_index: {}, 1.", self.num_elements());
+        // println!("sparse_from_index index type: {}, 1.", index.dtype());
+        println!("sparse_from_index index type bytes: {}, 1.", index.dtype().bytes());
+        println!("sparse_from_index output type bytes: {}, 1.", output.dtype().bytes());
+
+        // let mut tensor_ptr = self.data_ptr() as *const f32 as usize;
+        // let data0_ptr = self.data_ptr() as *const f32 as usize;
+        // let mut index_ptr = index.data_ptr() as *const u64 as usize;
+        // let mut output_ptr = output.data_ptr() as *const f32 as usize;
+        let tensor_ptr = self.data_ptr() as *const f32 as u64;
+        let index_ptr = index.data_ptr() as *const i64 as u64;
+        let output_ptr = output.data_ptr() as *const f32 as u64;
+        let count = index.num_elements();
+        unsafe {
+            cpp::cpp!([tensor_ptr as "float *", index_ptr as "long int *", output_ptr as "float *", count as "size_t"]
+            {
+                // float *data0_ptr = tensor_ptr;
+                float *tensor0_ptr = tensor_ptr;
+                float *output0_ptr = output_ptr;
+                long int *index0_ptr = index_ptr;
+                std::cout << "count: " << count << "! " << std::endl;
+                std::cout << "tensor_ptr[0]: " << tensor_ptr[0] << "! " << std::endl;
+                std::cout << "tensor_ptr[0]: " << *tensor_ptr << "! " << std::endl;
+                for (size_t i = 0; i < count; i++) {
+                    // std::cout << "i: " << i  << ", index0_ptr: " << index0_ptr << std::endl;
+                    // tensor0_ptr = data0_ptr + *index0_ptr;
+                    // std::cout << "tensor0_ptr: " << tensor0_ptr  << std::endl;
+                    // *output0_ptr = *tensor0_ptr;
+                    // std::cout << "output0_ptr: " << output0_ptr << ": "<< *output0_ptr << std::endl;
+                    // output0_ptr += 1;
+                    // index0_ptr += 1;
+                    output0_ptr[i] = tensor0_ptr[index0_ptr[i]];
+                }
+            });
+
+            // println!("sparse_from_index: {}, 2.", self.num_elements());
+            // let mut data0_ptr = tensor_ptr;
+            // for i in 0..index.num_elements() {
+            //     // println!("index addr = 0x{:X}; data addr = 0x{:X}; output addr = 0x{:X}.", index_ptr, tensor_ptr, output_ptr);
+            //     let mut index_val = index_ptr as *mut i64;
+            //     // println!("index addr = 0x{:X}; value = {}.", index_ptr, *index_val);
+            //     println!("index addr = 0x{:X}.", index_ptr);
+            //     let mut output_val = output_ptr as *mut f32;
+            //     println!("output addr = 0x{:X}.", output_ptr);
+            //     // println!("index addr = 0x{:X}, value = {}; output addr = 0x{:X}, value = {}.", index_ptr, *index_val, output_ptr, *output_val);
+            //     tensor_ptr = data0_ptr + 4 * ((*index_val) as u64);
+            //     println!("data addr = 0x{:X}.", tensor_ptr);
+            //     let mut data_val = tensor_ptr as *mut f32;
+            //     // println!("index addr = 0x{:X}, value = {}; data addr = 0x{:X}, value = {}.", index_ptr, *index_val, tensor_ptr, *data_val);
+            //     *output_val = *data_val;
+            //     index_ptr += 8;
+            //     output_ptr += 4;
+            // }
+            // println!("sparse_from_index: {}, 3.", self.num_elements());
+            // match self.dtype() {
+            //     BaguaTensorDtype::F32 => {
+            //         for i in 0..index.num_elements() {
+            //             let mut index_val = index_ptr as *mut u64;
+            //             let mut output_val = output_ptr as *mut f32;
+            //             tensor_ptr = data0_ptr + 4 * *index_val;
+            //             let mut data_val = tensor_ptr as *mut f32;
+            //             *output_val = *data_val;
+            //             index_ptr += 8;
+            //             output_ptr += 4;
+            //         }
+            //     }
+            //     BaguaTensorDtype::F16 => {
+            //         for i in 0..index.num_elements() {
+            //             let mut index_val = index_ptr as *mut u64;
+            //             let mut output_val = output_ptr as *mut f16;
+            //             tensor_ptr = data0_ptr + 2 * *index_val;
+            //             let mut data_val = tensor_ptr as *mut f16;
+            //             *output_val = *data_val;
+            //             index_ptr += 8;
+            //             output_ptr += 2;
+            //         }
+            //     }
+            //     BaguaTensorDtype::U8 => {
+            //         unimplemented!()
+            //     }
+            //     BaguaTensorDtype::I64 => {
+            //         unimplemented!()
+            //     }
+            //     BaguaTensorDtype::U64 => {
+            //         unimplemented!()
+            //     }
+            // }
+        }
+    }
+
+    fn sparse_gather_from_index(&mut self, index: &dyn RawBaguaTensor, value: &dyn RawBaguaTensor) {
+        assert_eq!(self.dtype(), value.dtype());
+        assert_eq!(index.num_elements(), value.num_elements());
+        let tensor_ptr = self.data_ptr() as *const f32 as u64;
+        let index_ptr = index.data_ptr() as *const i64 as u64;
+        let value_ptr = value.data_ptr() as *const f32 as u64;
+        println!("sparse_gather_from_index index type bytes: {}, 1.", index.dtype().bytes());
+        let count = index.num_elements();
+        let total_count = self.num_elements();
+        unsafe {
+            cpp::cpp!([tensor_ptr as "float *", index_ptr as "long int *", value_ptr as "float *", count as "size_t", total_count as "size_t"]
+            {
+                // float *data0_ptr = tensor_ptr;
+                float *tensor0_ptr = tensor_ptr;
+                long int *index0_ptr = index_ptr;
+                float *value0_ptr = value_ptr;
+                for (size_t i = 0; i < total_count; i++) {
+                    // *tensor0_ptr = 0.0;
+                    // tensor0_ptr += 1;
+                    tensor0_ptr[i] = 0.0;
+                }
+                // tensor0_ptr = data0_ptr;
+                for (size_t i = 0; i < count; i++) {
+                    // tensor0_ptr = data0_ptr + *index0_ptr;
+                    // *tensor0_ptr += *value0_ptr;
+                    // index0_ptr += 1;
+                    // value0_ptr += 1;
+                    tensor0_ptr[index0_ptr[i]] += value0_ptr[i];
+                }
+            });
+            // let mut data0_ptr = tensor_ptr;
+            // for i in 0..self.num_elements() {
+            //     let mut data_val = tensor_ptr as *mut f32;
+            //     *data_val = 0.0;
+            //     tensor_ptr += 4;
+            // }
+            // let mut tensor_ptr = data0_ptr;
+            // for i in 0..index.num_elements() {
+            //     let mut index_val = index_ptr as *mut i64;
+            //     let mut value_val = value_ptr as *mut f32;
+            //     tensor_ptr = data0_ptr + 4 * (*index_val as u64);
+            //     let mut data_val = tensor_ptr as *mut f32;
+            //     *data_val = *value_val;
+            //     index_ptr += 8;
+            //     value_ptr += 4;
+            // }
+            // match self.dtype() {
+            //     BaguaTensorDtype::F32 => {
+            //         for i in 0..self.num_elements() {
+            //             let mut data_val = tensor_ptr as *mut f32;
+            //             *data_val = 0.0;
+            //             tensor_ptr += 4;
+            //         }
+            //         let mut tensor_ptr = self.data_ptr();
+            //         for i in 0..index.num_elements() {
+            //             let mut index_val = index_ptr as *mut u64;
+            //             let mut value_val = value_ptr as *mut f32;
+            //             tensor_ptr = data0_ptr + 4 * *index_val;
+            //             let mut data_val = tensor_ptr as *mut f32;
+            //             *data_val = *value_val;
+            //             index_ptr += 8;
+            //             value_ptr += 4;
+            //         }
+            //     }
+            //     BaguaTensorDtype::F16 => {
+            //         for i in 0..self.num_elements() {
+            //             let mut data_val = tensor_ptr as *mut f16;
+            //             *data_val = 0.0;
+            //             tensor_ptr += 2;
+            //         }
+            //         let mut tensor_ptr = self.data_ptr();
+            //         for i in 0..index.num_elements() {
+            //             let mut index_val = index_ptr as *mut u64;
+            //             let mut value_val = value_ptr as *mut f16;
+            //             tensor_ptr = data0_ptr + 2 * *index_val;
+            //             let mut data_val = tensor_ptr as *mut f16;
+            //             *data_val = *value_val;
+            //             index_ptr += 8;
+            //             value_ptr += 2;
+            //         }
+            //     }
+            //     BaguaTensorDtype::U8 => {
+            //         unimplemented!()
+            //     }
+            //     BaguaTensorDtype::I64 => {
+            //         unimplemented!()
+            //     }
+            //     BaguaTensorDtype::U64 => {
+            //         unimplemented!()
+            //     }
+            // }
         }
     }
 }
@@ -1596,6 +1786,32 @@ impl BaguaBucket {
                 }
             },
         };
+        self.inner.lock().comm_ops.push(comm_op);
+    }
+
+    /// this function will use communicator_internode to communicate.
+    /// if hierarchical = True, it will do hierarchical communicator, this requires intranode communicator on each node and inter node communicator on leader GPU. leader GPU will be the GPU whose communicator_intranode rank is 0
+    pub fn append_centralized_sparse_py_rust_synchronous_op(
+        &mut self,
+        communicator_internode: Option<&BaguaSingleCommunicator>,
+        communicator_intranode: Option<&BaguaSingleCommunicator>,
+        hierarchical: bool,
+        compression: Option<String>,
+        recv_value: BaguaTensor,
+        recv_index: BaguaTensor,
+        send_value: BaguaTensor,
+        other_value: BaguaTensor,
+    ) {
+        let communicator =
+            BaguaCommunicator::new(communicator_internode, communicator_intranode, hierarchical)
+                .expect("cannot create communicator");
+        let comm_op = Arc::new(CentralizedFullPrecisionSparsePyRustSynchronous {
+            communicator,
+            recv_value,
+            recv_index,
+            send_value,
+            other_value,
+        });
         self.inner.lock().comm_ops.push(comm_op);
     }
 

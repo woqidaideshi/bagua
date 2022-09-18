@@ -822,6 +822,45 @@ void sparse_gather_host(float *input, int *index, int index_num_element, float *
     CUDACHECK(cudaGetLastError());
 }
 
+void sparse_extract_cpp(float *input, long int *index, int index_num_element, float *output, cudaStream_t stream) {
+    float *data0_ptr = input;
+    printf("----sparse_extract_cpp index_num_element: %d\n", index_num_element);
+    for (int i = 0; i < index_num_element; i++) {
+        // printf("----sparse_extract_cpp i: %d.\n", i);
+        // printf("----sparse_extract_cpp input addr: %x; data0_ptr: %x.\n", input, data0_ptr);
+        // input = data0_ptr + *index;
+        // printf("----sparse_extract_cpp input addr: %x; data0_ptr: %x.\n", input, data0_ptr);
+        // printf("----sparse_extract_cpp input addr: %x, input value: %f.\n", input, *input);
+        // *output = *input;
+        // printf("----sparse_extract_cpp output value: %f.\n", *output);
+        // output += 1;
+        // index += 1;
+
+        printf("----sparse_extract_cpp i: %d.\n", i);
+        printf("----sparse_extract_cpp input addr: %x; data0_ptr: %x.\n", input, data0_ptr);
+        printf("----sparse_extract_cpp index addr: %x, index value: %ld.\n", index, index[i]);
+        output[i] = input[index[i]];
+        printf("----sparse_extract_cpp output value: %f.\n", output[i]);
+    }
+}
+
+void sparse_gather_cpp(float *input, long int *index, int index_num_element, float *output, int output_num_element, cudaStream_t stream) {
+    float *data0_ptr = output;
+    for (int i = 0; i < output_num_element; i++) {
+        output[i] = 0.0;
+        // *output = 0.0;
+        // output += 1;
+    }
+    output = data0_ptr;
+    for (int i = 0; i < index_num_element; i++) {
+        // output = data0_ptr + *index;
+        // *output += *input;
+        // index += 1;
+        // input += 1;
+        output[index[i]] += input[i];
+    }
+}
+
 }
 
 ncclResult_t ncclAllToAll(void *sendbuf,

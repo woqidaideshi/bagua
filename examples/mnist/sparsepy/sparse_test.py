@@ -33,6 +33,200 @@ def topk(vec, k):
     # ret.copy_(vec[topkIndices])
     return topkIndices, vec[topkIndices]
 
+class SparsePyRustAlgorithmImpl(AlgorithmImpl):
+    def __init__(
+        self,
+        process_group: BaguaProcessGroup,
+        hierarchical: bool = True,
+        communication_interval: int = 1,
+        optimizer: Optimizer = None,
+        topK: int = 0,
+    ):
+        """
+        Implementation of the `Sparse` algorithm.
+
+        Args:
+            process_group (BaguaProcessGroup): The process group to work on.
+            hierarchical (bool): Enable hierarchical communication.
+            communication_interval (int): Number of iterations between two communication steps.
+            optimizer (Optimizer): A torch Optimizer initialized with model parameters.
+            topK:.
+        """
+        super(SparsePyRustAlgorithmImpl, self).__init__(process_group)
+        self.hierarchical = hierarchical
+        self.communication_interval = communication_interval
+        self.cuda_event = torch.cuda.Event()
+        self.optimizer = optimizer
+        self.rank = bagua.get_rank()
+        self.topK = topK
+        self.param_size = 0
+        # self.tensors = []
+        for group in optimizer.param_groups:
+            for param in group["params"]:
+                self.param_size += param.numel()
+                # self.tensors.append(param)
+        self.works = bagua.get_world_size()
+        if self.topK == 0:
+            self.topK = self.param_size // 100
+        elif self.topK > self.param_size:
+            self.topK = self.param_size
+        self.recv_messages = torch.zeros(self.topK*self.works, dtype=torch.float32)#.cuda()
+        self.recv_indexes = torch.zeros(self.topK*self.works, dtype=torch.int64)#.cuda()
+        self.send_messages = torch.zeros(self.topK, dtype=torch.float32)#.cuda()
+        self.send_indexes = torch.zeros(self.topK, dtype=torch.int64)#.cuda()
+        self.tensors_buffer = torch.zeros(self.param_size, dtype=torch.float32)#.cuda()
+
+        self.recv_value = torch.zeros(self.topK*self.works, dtype=torch.float32).cuda()
+        self.recv_index = torch.zeros(self.topK*self.works, dtype=torch.int64).cuda()
+        self.send_value = torch.zeros(self.topK, dtype=torch.float32).cuda()
+        self.tensors_value = torch.zeros(self.param_size, dtype=torch.float32).cuda()
+        # self.other_tensor_buffer = torch.zeros(self.param_size, dtype=torch.float32).cuda()
+        # self.value_tensor_buffer = torch.zeros(self.topK, dtype=torch.float32).cuda()
+        logging.info("---------param_size: {}, topK: {}".format(self.param_size, self.topK))
+
+    def _should_communicate(self, bagua_ddp: BaguaDistributedDataParallel) -> bool:
+        cur_step = bagua_ddp.bagua_train_step_counter - 1
+        return cur_step % self.communication_interval == 0
+
+    def init_tensors(self, bagua_ddp: BaguaDistributedDataParallel) -> List[BaguaTensor]:
+        parameters = bagua_ddp.bagua_build_params()
+        self.tensors = []
+        for name, param in parameters:
+            param.bagua_ensure_grad()
+            self.tensors.append(param.grad)
+        name, param = parameters[-1]
+        param.index_tensor = torch.zeros(self.topK, dtype=torch.int64)#.cuda()
+
+        self.index_tensor = param.ensure_bagua_tensor(
+            name,
+            bagua_ddp.bagua_module_name,
+            getter_closure=lambda param: param.index_tensor,
+            setter_closure=lambda param, t: setattr(param, "index_tensor", t),
+        )
+        self._communication_tensor_names = set((name,))
+        return [self.index_tensor]
+
+    def tensors_to_buckets(
+        self, tensors: List[List[BaguaTensor]], do_flatten: bool
+    ) -> List[BaguaBucket]:
+        all_tensors = []
+        for idx, bucket in enumerate(tensors):
+            all_tensors.extend(bucket)
+
+        bagua_bucket = BaguaBucket(all_tensors, flatten=do_flatten, name=str(0))
+        print("----------tensors_to_buckets: flatten={}".format(do_flatten))
+        return [bagua_bucket]
+
+    def init_forward_pre_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        def hook(input):
+            return
+
+        return hook
+
+    def init_backward_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        def hook(parameter_name, parameter):
+            pass
+
+        return hook
+
+    def init_post_backward_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        def hook():
+            self.index_tensor.bagua_mark_communication_ready()
+            bagua_ddp._bagua_backend.wait_pending_comm_ops()
+            def pack():
+                """Packs a list of tensors into one buffer for sending to other workers"""
+                buffer = torch.cat([t.view(-1) for t in self.tensors])  # copies
+                _, indexes = torch.topk(buffer**2, self.topK)
+                self.send_indexes.copy_(indexes)
+                self.send_messages.copy_(buffer[indexes])
+
+            def unpack():
+                """Provides pointers to tensors of original `shapes` in a flat-packed buffer."""
+                self.tensors_buffer.zero_()
+                for rank in range(self.works):
+                    start = rank * self.topK
+                    end = start + self.topK
+                    self.tensors_buffer[self.recv_indexes[start:end]] += (self.recv_messages[start:end])
+                self.tensors_buffer.div_(self.works)
+
+            def test():
+                print("----SparsePyAlgorithmImpl init_post_backward_hook rank: {}, step: {}, tensors_buffer == other_tensor: {}, tensors_buffer nonzero size: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, torch.equal(self.tensors_buffer, self.tensors_value), self.tensors_buffer.count_nonzero().item()))
+
+            def unpack2tensors():
+                # self.tensors_value.zero_()
+                # for rank in range(self.works):
+                #     start = rank * self.topK
+                #     end = start + self.topK
+                #     self.tensors_value[self.recv_index[start:end]] += (self.recv_value[start:end])
+                # self.tensors_value.div_(self.works)
+                size = 0
+                for tensor in self.tensors:
+                    count = tensor.numel()
+                    tmp_buffer = self.tensors_value[size:count+size]
+                    tmp_tensor = tensor.view(-1)
+                    tmp_tensor[tmp_buffer.nonzero()] = 0.0
+                    tmp_tensor.add_(tmp_buffer)
+                    size += count
+
+            pack()
+            bagua.allgather(self.send_indexes, self.recv_indexes)
+            bagua.allgather(self.send_messages, self.recv_messages)
+            torch.cuda.synchronize()
+            unpack()
+            unpack2tensors()
+            test()
+
+        return hook
+
+    def init_post_optimizer_step_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        def hook(optimizer: torch.optim.Optimizer):
+            return
+
+        return hook
+
+    def init_operations(
+        self,
+        bagua_ddp: BaguaDistributedDataParallel,
+        bucket: BaguaBucket,
+    ):
+        bucket._recv_value = self.recv_value.ensure_bagua_tensor(
+            "recv_value", bagua_ddp.bagua_module_name
+        )
+        bucket._recv_index = self.recv_index.ensure_bagua_tensor(
+            "recv_index", bagua_ddp.bagua_module_name
+        )
+        bucket._send_value = self.send_value.ensure_bagua_tensor(
+            "send_value", bagua_ddp.bagua_module_name
+        )
+        bucket._other_value = self.tensors_value.ensure_bagua_tensor(
+            "other_value", bagua_ddp.bagua_module_name
+        )
+        torch.cuda.synchronize()
+        bucket.clear_ops()
+        def set_index(*args):
+            if hasattr(bucket, "_send_value"):
+                buffer = torch.cat([t.view(-1) for t in self.tensors])  # copies
+                _, indexes = torch.topk(buffer**2, self.topK)
+                index_tensor = bucket.tensors[0]
+                index_tensor.bagua_getter_closure().copy_(indexes)
+                bucket._other_value.bagua_getter_closure().copy_(buffer)
+                # count_origin = 0
+                # count_origin_nonzero = 0
+                # for tensor in self.tensors:
+                #     count_origin += tensor.numel()
+                #     count_origin_nonzero += tensor.count_nonzero().item()
+                # bucket._send_value.bagua_getter_closure().copy_(buffer[indexes])
+
+        bucket.append_python_op(set_index, group=self.process_group)
+        bucket.append_centralized_sparse_py_rust_synchronous_op(
+            recv_value=bucket._recv_value,
+            recv_index=bucket._recv_index,
+            send_value=bucket._send_value,
+            other_value=bucket._other_value,
+            hierarchical=False,
+            group=self.process_group,
+        )
+
 class SparsePyCudaAlgorithmImpl(AlgorithmImpl):
     def __init__(
         self,
@@ -1449,6 +1643,36 @@ class SparseInplaceAlgorithmImpl(AlgorithmImpl):
             group=self.process_group,
         )
         # bucket.append_python_op(log_func, group=self.process_group)
+
+class SparsePyRustAlgorithm(Algorithm):
+    def __init__(
+        self,
+        hierarchical: bool = True,
+        communication_interval: int = 1,
+        optimizer: Optimizer = None,
+        topK: int = 0,
+    ):
+        """
+        Create an instance of the Sparse algorithm.
+
+        Args:
+            hierarchical (bool): Enable hierarchical communication.
+            communication_interval (int): Number of iterations between two communication steps.
+            optimizer (Optimizer): A torch Optimizer initialized with model parameters.
+        """
+        self.hierarchical = hierarchical
+        self.communication_interval = communication_interval
+        self.optimizer = optimizer
+        self.topK = topK
+
+    def reify(self, process_group: BaguaProcessGroup) -> SparsePyRustAlgorithmImpl:
+        return SparsePyRustAlgorithmImpl(
+            process_group,
+            hierarchical=self.hierarchical,
+            communication_interval=self.communication_interval,
+            optimizer=self.optimizer,
+            topK=self.topK,
+        )
 
 class SparsePyCudaAlgorithm(Algorithm):
     def __init__(
