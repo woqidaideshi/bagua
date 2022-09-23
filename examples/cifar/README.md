@@ -49,3 +49,7 @@ python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparse
 python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparse-test-independ --lr 0.05 --epochs 50 > log/sparsepy/sparse-test-20220901.6.log
 
 python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparse-py-cuda --lr 0.05 --epochs 50 > log/sparsepy/sparse-test-20220906.log
+
+python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparse-py-cuda-parallel > log/sparsepy/sparse-test-20220923.log
+
+python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparse-test-inplace-parallel > log/sparsepy/sparse-test-20220923.1.log

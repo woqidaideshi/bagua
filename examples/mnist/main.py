@@ -468,6 +468,12 @@ def main():
     elif args.algorithm == "sparse-py-rust":
         from sparsepy import sparse_test
         algorithm = sparse_test.SparsePyRustAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-py-cuda-parallel":
+        from sparsepy import sparse_test
+        algorithm = sparse_test.SparsePyCudaParallelAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-test-inplace-parallel":
+        from sparsepy import sparse_test
+        algorithm = sparse_test.SparseInplaceParallelAlgorithm(optimizer=optimizer)
     else:
         raise NotImplementedError
 

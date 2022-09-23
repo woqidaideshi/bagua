@@ -500,6 +500,54 @@ impl BaguaBucketPy {
         Ok(())
     }
 
+        /// this function will use communicator_internode to communicate.
+    /// if hierarchical = True, it will do hierarchical communicator, this requires intranode communicator on each node and inter node communicator on leader GPU. leader GPU will be the GPU whose communicator_intranode rank is 0
+    #[args(hierarchical = "false")]
+    pub fn append_centralized_sparse_inplace_parallel_synchronous_op(
+        &mut self,
+        communicator_internode: Option<&BaguaSingleCommunicatorPy>,
+        communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
+        hierarchical: bool,
+        compression: Option<String>,
+        other_tensor: PyRef<BaguaTensorPy>,
+    ) -> PyResult<()> {
+        self.inner.append_centralized_sparse_inplace_parallel_synchronous_op(
+            communicator_internode.map(|x| &x.inner),
+            communicator_intranode.map(|x| &x.inner),
+            hierarchical,
+            compression,
+            (*other_tensor).inner.clone(),
+        );
+        Ok(())
+    }
+
+    /// this function will use communicator_internode to communicate.
+    /// if hierarchical = True, it will do hierarchical communicator, this requires intranode communicator on each node and inter node communicator on leader GPU. leader GPU will be the GPU whose communicator_intranode rank is 0
+    #[args(hierarchical = "false")]
+    pub fn append_centralized_sparse_py_cuda_parallel_synchronous_op(
+        &mut self,
+        communicator_internode: Option<&BaguaSingleCommunicatorPy>,
+        communicator_intranode: Option<&BaguaSingleCommunicatorPy>,
+        hierarchical: bool,
+        compression: Option<String>,
+        recv_value: PyRef<BaguaTensorPy>,
+        recv_index: PyRef<BaguaTensorPy>,
+        send_value: PyRef<BaguaTensorPy>,
+        other_value: PyRef<BaguaTensorPy>,
+    ) -> PyResult<()> {
+        self.inner.append_centralized_sparse_py_cuda_parallel_synchronous_op(
+            communicator_internode.map(|x| &x.inner),
+            communicator_intranode.map(|x| &x.inner),
+            hierarchical,
+            compression,
+            (*recv_value).inner.clone(),
+            (*recv_index).inner.clone(),
+            (*send_value).inner.clone(),
+            (*other_value).inner.clone(),
+        );
+        Ok(())
+    }
+
     /// this function will use communicator_internode to communicate.
     /// if hierarchical = True, it will do hierarchical communicator, this requires intranode communicator on each node and inter node communicator on leader GPU. leader GPU will be the GPU whose communicator_intranode rank is 0
     #[args(hierarchical = "false")]

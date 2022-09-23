@@ -126,6 +126,16 @@ def get_optimizer_algorithm(model, args, optimizer = None):
         sys.path.append("../mnist/sparsepy")
         import sparse_test
         algorithm = sparse_test.SparsePyCudaAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-py-cuda-parallel":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparse_test
+        algorithm = sparse_test.SparsePyCudaParallelAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-test-inplace-parallel":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparse_test
+        algorithm = sparse_test.SparseInplaceParallelAlgorithm(optimizer=optimizer)
     elif args.algorithm == "test":
         import sys
         sys.path.append("../mnist")
