@@ -20,3 +20,9 @@ python -m bagua.distributed.launch --nproc_per_node=4 test.py > test_synchronize
 python -m bagua.distributed.launch --nproc_per_node=4 test.py --func test_iwait > ./logs/test-test_iwait-0609.log
 
 python test-bagua.py > ./logs/test-bagua-$(date +%m%d).1.log
+
+
+python -m bagua.distributed.launch --nproc_per_node=2 main_other.py
+
+python -m bagua.distributed.launch --nproc_per_node=4 main_other.py
+python -m bagua.distributed.launch --nproc_per_node=1 --nnodes=4 --node_rank=0 --master_addr="172.31.21.207" --master_port=1234 main_other.py
