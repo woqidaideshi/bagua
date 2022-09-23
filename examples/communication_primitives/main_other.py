@@ -1,15 +1,17 @@
 from __future__ import print_function
 import argparse
+from tkinter.messagebox import NO
 import torch
 import torch.distributed as dist
 import logging
 import bagua.torch_api as bagua
-
+import time
+import os
 
 def init_env():
     torch.set_printoptions(precision=20)
 
-    assert bagua.get_world_size() >= 2, "world size must be at least 2"
+    assert bagua.get_world_size() >= 1, "world size must be at least 1"
 
     torch.cuda.set_device(bagua.get_local_rank())
     bagua.init_process_group()
@@ -72,6 +74,8 @@ def allgather():
     print("rank: {}, recv tensor id: {}.".format(bagua.get_rank(), id(recv_tensor_bagua)))
     bagua.allgather(send_tensor, recv_tensor_bagua, comm=comm)
     print("rank: {}, send tensor: {}, recv tensor id: {}, recv tensor: {}".format(bagua.get_rank(), send_tensor, id(recv_tensor_bagua), recv_tensor_bagua))
+    send_tensor.zero_()
+    print("rank: {}, send tensor: {}, recv tensor id: {}, recv tensor: {}".format(bagua.get_rank(), send_tensor, id(recv_tensor_bagua), recv_tensor_bagua))
 
 def allgather_inplace():
     comm = init_env()
@@ -83,7 +87,85 @@ def allgather_inplace():
     bagua.allgather_inplace(send_tensor, recv_tensor_bagua, comm=comm)
     print("rank: {}, send tensor: {}, recv tensor id: {}, recv tensor: {}".format(bagua.get_rank(), send_tensor, id(recv_tensor_bagua), recv_tensor_bagua))
 
+def allgather_torch(): # error
+    comm = init_env()
+    rank = bagua.get_rank()
+    send_tensor = torch.rand(rank+1, dtype=torch.float32).cuda()
+    recv_tensors = [
+        torch.zeros(4, dtype=torch.float32).cuda()
+        for i in range(bagua.get_world_size())
+    ]
+    dist.all_gather(recv_tensors, send_tensor)
+    print("rank: {}, send tensor: {}, recv tensor: {}.".format(rank, send_tensor, recv_tensors))
+
+def send_recv():
+    torch.set_printoptions(precision=20)
+
+    assert bagua.get_world_size() >= 1, "world size must be at least 2"
+
+    torch.cuda.set_device(bagua.get_local_rank())
+    bagua.init_process_group()
+
+    logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.INFO)
+
+    comm = bagua.communication._get_default_group().get_global_communicator()
+
+    size = 1000000
+    print("rank: ", bagua.get_rank())
+    for index in range(1, 10000):
+        print("index: ", index)
+        send_tensor = torch.rand(size, dtype=torch.float32).cuda()
+        # recv_tensor = torch.zeros(size, dtype=torch.float32).cuda()
+        recv_tensor_bagua = torch.zeros(size, dtype=torch.float32).cuda()
+        # send, recv
+        if bagua.get_rank() == 0:
+            # dist.send(send_tensor, 1)
+            bagua.send(send_tensor, 1, comm=comm)
+            print("----------{}".format(send_tensor.is_bagua_tensor()))
+            # logging.info("recv_tensor == recv_tensor_bagua is {}".format(torch.equal(recv_tensor, recv_tensor_bagua)))
+            # send_tensor.drop_bagua_tensor()
+            send_tensor = None
+        elif bagua.get_rank() == 1:
+            # dist.recv(recv_tensor, 0)
+            bagua.recv(recv_tensor_bagua, 0, comm=comm)
+            print("----------{}".format(recv_tensor_bagua.is_bagua_tensor()))
+            # print("recv_tensor == recv_tensor_bagua is {}".format(torch.equal(recv_tensor, recv_tensor_bagua)))
+            # recv_tensor_bagua.drop_bagua_tensor()
+            recv_tensor_bagua = None
+
+def allgather_test(datasize, epochs, div):
+    comm = init_env()
+    outdir = os.path.join("./log", "allgather_comm")
+    ranks = bagua.get_world_size()
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+    log_name = "allgather_gpu" + str(ranks) + "_rank" + str(bagua.get_rank()) + "_datasize" + str(datasize) + "_div" + str(div) + "_epochs" + str(epochs) + ".txt"
+    log_file = os.path.join(outdir, log_name)
+    writer = open(log_file, "w")
+
+    for i in range(0, 5):
+        send_value_tensor = torch.randn(datasize, dtype=torch.float32).cuda()
+        send_index_tensor = torch.randint_like(send_value_tensor, 0, datasize, dtype=torch.int64).cuda()
+        recv_value_tensor = torch.randn(datasize * ranks, dtype=torch.float32).cuda()
+        recv_index_tensor = torch.randint_like(recv_value_tensor, 0, datasize, dtype=torch.int64).cuda()
+        duration = 0
+        for index in range(epochs):
+            torch.cuda.synchronize()
+            start = time.time()
+            bagua.allgather(send_index_tensor, recv_index_tensor, comm=comm)
+            bagua.allgather(send_value_tensor, recv_value_tensor, comm=comm)
+            torch.cuda.synchronize()
+            end = time.time()
+            duration += end - start
+        writer.write("allgather on ranks={}, rank={}, datasize={}, div={}, epochs={}, time={}, average time={}.\n".format(ranks, bagua.get_rank(), datasize, div, epochs, duration, duration/epochs))
+        datasize //= div
+    writer.write('\n')
+    writer.flush()
+
 if __name__ == "__main__":
     # gather()
     # gather_inplace()
-    allgather()
+    # allgather()
+    # allgather_torch() # error
+    # send_recv()
+    allgather_test(1199800, 100, 5)
