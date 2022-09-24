@@ -163,7 +163,8 @@ def allgather_test(datasize, epochs, div):
         rst += "allgather on ranks={}, rank={}, datasize={}, div={}, epochs={}, time={}, average time={}.\n".format(ranks, rank, datasize, div, epochs, duration, duration/epochs)
         datasize //= div
         writer.write('\n\n')
-    
+        writer.flush()
+
     writer.write('\n')
     writer.write(rst)
     writer.flush()
@@ -172,6 +173,13 @@ def send_recv_test(datasize, epochs, div):
     comm = init_env()
     outdir = os.path.join("./log", "sendrecv_comm")
     ranks = bagua.get_world_size()
+    if ranks == 0:
+        print("world size must be at least 2")
+        return
+    elif ranks == 2:
+        neighbours = 1
+    else:
+        neighbours = 2
     rank = bagua.get_rank()
     if not os.path.exists(outdir):
         os.makedirs(outdir, exist_ok=True)
@@ -180,21 +188,22 @@ def send_recv_test(datasize, epochs, div):
     writer = open(log_file, "w")
     rst = ""
     for i in range(0, 5):
-        send_value_tensor = torch.randn(datasize, dtype=torch.float32).cuda()
+        send_value_tensors = [torch.randn(datasize, dtype=torch.float32).cuda() for x in range(0, neighbours)]
         # send_index_tensor = torch.randint_like(send_value_tensor, 0, datasize, dtype=torch.int64).cuda()
-        recv_value_tensor = torch.randn(datasize, dtype=torch.float32).cuda()
+        recv_value_tensors = [torch.randn(datasize, dtype=torch.float32).cuda() for x in range(0, neighbours)]
         # recv_index_tensor = torch.randint_like(recv_value_tensor, 0, datasize, dtype=torch.int64).cuda()
         duration = 0
         for index in range(epochs):
             torch.cuda.synchronize()
             start = time.time()
-            for neighbour in [(rank - 1) % ranks, (rank + 1) % ranks]:
+            for neighbour in set([(rank - 1) % ranks, (rank + 1) % ranks]):
+                print("--------neighbour: {}".format(neighbour))
                 if rank > neighbour:
-                    bagua.recv(recv_value_tensor, neighbour)
-                    bagua.send(send_value_tensor, neighbour)
+                    bagua.recv(recv_value_tensors[-1], neighbour)
+                    bagua.send(send_value_tensors[-1], neighbour)
                 else:
-                    bagua.send(send_value_tensor, neighbour)
-                    bagua.recv(recv_value_tensor, neighbour)
+                    bagua.send(send_value_tensors[0], neighbour)
+                    bagua.recv(recv_value_tensors[0], neighbour)
             torch.cuda.synchronize()
             end = time.time()
             duration_tmp = end - start
@@ -203,6 +212,7 @@ def send_recv_test(datasize, epochs, div):
         rst += "sendrecv on ranks={}, rank={}, datasize={}, div={}, epochs={}, time={}, average time={}.\n".format(ranks, rank, datasize, div, epochs, duration, duration/epochs)
         datasize //= div
         writer.write('\n\n')
+        writer.flush()
 
     writer.write('\n\n')
     writer.write(rst)
@@ -214,5 +224,7 @@ if __name__ == "__main__":
     # allgather()
     # allgather_torch() # error
     # send_recv()
-    allgather_test(25557032, 10000, 10)
-    # send_recv_test(1199800, 100, 10)
+    # allgather_test(25557032, 100, 10)
+    # allgather_test(1199800, 1000, 10)
+    # send_recv_test(25557032, 100, 10)
+    send_recv_test(1199800, 1000, 10)
