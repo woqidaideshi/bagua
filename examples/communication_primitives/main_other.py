@@ -137,12 +137,13 @@ def allgather_test(datasize, epochs, div):
     comm = init_env()
     outdir = os.path.join("./log", "allgather_comm")
     ranks = bagua.get_world_size()
+    rank = bagua.get_rank()
     if not os.path.exists(outdir):
-        os.makedirs(outdir)
-    log_name = "allgather_gpu" + str(ranks) + "_rank" + str(bagua.get_rank()) + "_datasize" + str(datasize) + "_div" + str(div) + "_epochs" + str(epochs) + ".txt"
+        os.makedirs(outdir, exist_ok=True)
+    log_name = "allgather_gpu" + str(ranks) + "_rank" + str(rank) + "_datasize" + str(datasize) + "_div" + str(div) + "_epochs" + str(epochs) + ".txt"
     log_file = os.path.join(outdir, log_name)
     writer = open(log_file, "w")
-
+    rst = ""
     for i in range(0, 5):
         send_value_tensor = torch.randn(datasize, dtype=torch.float32).cuda()
         send_index_tensor = torch.randint_like(send_value_tensor, 0, datasize, dtype=torch.int64).cuda()
@@ -156,10 +157,55 @@ def allgather_test(datasize, epochs, div):
             bagua.allgather(send_value_tensor, recv_value_tensor, comm=comm)
             torch.cuda.synchronize()
             end = time.time()
-            duration += end - start
-        writer.write("allgather on ranks={}, rank={}, datasize={}, div={}, epochs={}, time={}, average time={}.\n".format(ranks, bagua.get_rank(), datasize, div, epochs, duration, duration/epochs))
+            duration_tmp = end - start
+            duration += duration_tmp
+            writer.write("allgather on ranks={}, rank={}, step={}, datasize={}, div={}, epochs={}, time={}.\n".format(ranks, rank, index, datasize, div, epochs, duration_tmp))
+        rst += "allgather on ranks={}, rank={}, datasize={}, div={}, epochs={}, time={}, average time={}.\n".format(ranks, rank, datasize, div, epochs, duration, duration/epochs)
         datasize //= div
+        writer.write('\n\n')
+    
     writer.write('\n')
+    writer.write(rst)
+    writer.flush()
+
+def send_recv_test(datasize, epochs, div):
+    comm = init_env()
+    outdir = os.path.join("./log", "sendrecv_comm")
+    ranks = bagua.get_world_size()
+    rank = bagua.get_rank()
+    if not os.path.exists(outdir):
+        os.makedirs(outdir, exist_ok=True)
+    log_name = "sendrecv_gpu" + str(ranks) + "_rank" + str(rank) + "_datasize" + str(datasize) + "_div" + str(div) + "_epochs" + str(epochs) + ".txt"
+    log_file = os.path.join(outdir, log_name)
+    writer = open(log_file, "w")
+    rst = ""
+    for i in range(0, 5):
+        send_value_tensor = torch.randn(datasize, dtype=torch.float32).cuda()
+        # send_index_tensor = torch.randint_like(send_value_tensor, 0, datasize, dtype=torch.int64).cuda()
+        recv_value_tensor = torch.randn(datasize, dtype=torch.float32).cuda()
+        # recv_index_tensor = torch.randint_like(recv_value_tensor, 0, datasize, dtype=torch.int64).cuda()
+        duration = 0
+        for index in range(epochs):
+            torch.cuda.synchronize()
+            start = time.time()
+            for neighbour in [(rank - 1) % ranks, (rank + 1) % ranks]:
+                if rank > neighbour:
+                    bagua.recv(recv_value_tensor, neighbour)
+                    bagua.send(send_value_tensor, neighbour)
+                else:
+                    bagua.send(send_value_tensor, neighbour)
+                    bagua.recv(recv_value_tensor, neighbour)
+            torch.cuda.synchronize()
+            end = time.time()
+            duration_tmp = end - start
+            duration += duration_tmp
+            writer.write("sendrecv on ranks={}, rank={}, step={}, datasize={}, div={}, epochs={}, time={}.\n".format(ranks, rank, index, datasize, div, epochs, duration_tmp))
+        rst += "sendrecv on ranks={}, rank={}, datasize={}, div={}, epochs={}, time={}, average time={}.\n".format(ranks, rank, datasize, div, epochs, duration, duration/epochs)
+        datasize //= div
+        writer.write('\n\n')
+
+    writer.write('\n\n')
+    writer.write(rst)
     writer.flush()
 
 if __name__ == "__main__":
@@ -168,4 +214,5 @@ if __name__ == "__main__":
     # allgather()
     # allgather_torch() # error
     # send_recv()
-    allgather_test(1199800, 100, 5)
+    allgather_test(25557032, 10000, 10)
+    # send_recv_test(1199800, 100, 10)
