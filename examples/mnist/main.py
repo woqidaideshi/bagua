@@ -418,6 +418,9 @@ def main():
             model.parameters(), lr=args.lr
         )
         algorithm = MarinaAlgorithm(optimizer)
+    elif args.algorithm == "allreduce_test":
+        import allreduce_test
+        algorithm = allreduce_test.AllreduceAlgorithm(optimizer)
     elif args.algorithm == "test":
         from gradient_allreduce import GradientAllReduceAlgorithm
         algorithm = GradientAllReduceAlgorithm()
@@ -474,6 +477,9 @@ def main():
     elif args.algorithm == "sparse-test-inplace-parallel":
         from sparsepy import sparse_test
         algorithm = sparse_test.SparseInplaceParallelAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-py-cuda-independ-parallel":
+        from sparsepy import sparse_test
+        algorithm = sparse_test.SparsePyCudaIndependParallelAlgorithm(optimizer=optimizer)
     else:
         raise NotImplementedError
 

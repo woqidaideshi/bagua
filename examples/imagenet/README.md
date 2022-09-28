@@ -19,6 +19,9 @@ python3 -m bagua.distributed.launch --nproc_per_node=4 main.py --arch resnet50 -
 python3 -m bagua.distributed.launch --nproc_per_node=4 main.py --arch resnet50 --algorithm sparse-test-inplace-parallel --epochs 50 ./imagenette2 > log/sparsepy/sparse-test-20220923.1.log
 
 
+python3 -m bagua.distributed.launch --nproc_per_node=4 main.py --arch resnet50 --algorithm sparse-py-cuda-independ-parallel --epochs 20 ./imagenette2 > log/sparsepy/sparse-test-20220928.log
+
+
 ### Multiple nodes
 
 The following scripts launch a distributed job on a 2-by-8 gpu cluster. 

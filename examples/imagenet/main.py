@@ -290,6 +290,11 @@ def main_worker(args):
         sys.path.append("../mnist/sparsepy")
         import sparse_test
         algorithm = sparse_test.SparseInplaceParallelAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-py-cuda-independ-parallel":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparse_test
+        algorithm = sparse_test.SparsePyCudaIndependParallelAlgorithm(optimizer=optimizer)
     else:
         raise NotImplementedError
 

@@ -197,7 +197,6 @@ def send_recv_test(datasize, epochs, div):
             torch.cuda.synchronize()
             start = time.time()
             for neighbour in set([(rank - 1) % ranks, (rank + 1) % ranks]):
-                print("--------neighbour: {}".format(neighbour))
                 if rank > neighbour:
                     bagua.recv(recv_value_tensors[-1], neighbour)
                     bagua.send(send_value_tensors[-1], neighbour)
