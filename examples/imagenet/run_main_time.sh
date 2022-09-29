@@ -21,3 +21,4 @@ python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --arch resnet
 python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --arch resnet50 --algorithm sparse-py-cuda-parallel --epochs 50 $datadir > /dev/null
 python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --arch resnet50 --algorithm sparse-test-inplace-parallel --epochs 50 $datadir > /dev/null
 python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --arch resnet50 --algorithm sparse-py-cuda-independ-parallel --epochs 50 $datadir > /dev/null
+python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --arch resnet50 --algorithm sparse-py-cuda-independ2-parallel --epochs 50 $datadir > /dev/null

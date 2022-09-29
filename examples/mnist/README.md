@@ -73,6 +73,7 @@ python -m bagua.distributed.launch --nproc_per_node=4 main_time.py --algorithm s
 
 python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparse-py-cuda-independ-parallel --epochs 20 > log/sparsepy/sparse-test-20220928.log
 
+python -m bagua.distributed.launch --nproc_per_node=4 main.py --algorithm sparse-py-cuda-independ2-parallel --epochs 20 > log/sparsepy/sparse-test-20220929.log
 
 sketch:
 python -m bagua.distributed.launch --nproc_per_node=2 main.py --algorithm gradient_allreduce_sketch > /dev/null

@@ -327,6 +327,11 @@ def main_worker(args):
         sys.path.append("../mnist/sparsepy")
         import sparse_test
         algorithm = sparse_test.SparsePyCudaIndependParallelAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-py-cuda-independ2-parallel":
+        import sys
+        sys.path.append("../mnist/sparsepy")
+        import sparse_test
+        algorithm = sparse_test.SparsePyCudaIndepend2ParallelAlgorithm(optimizer=optimizer)
     elif args.algorithm == "test":
         import sys
         sys.path.append("../mnist")

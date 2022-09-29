@@ -391,6 +391,9 @@ def main():
     elif args.algorithm == "sparse-py-cuda-independ-parallel":
         from sparsepy import sparse_test
         algorithm = sparse_test.SparsePyCudaIndependParallelAlgorithm(optimizer=optimizer)
+    elif args.algorithm == "sparse-py-cuda-independ2-parallel":
+        from sparsepy import sparse_test
+        algorithm = sparse_test.SparsePyCudaIndepend2ParallelAlgorithm(optimizer=optimizer)
     else:
         raise NotImplementedError
     

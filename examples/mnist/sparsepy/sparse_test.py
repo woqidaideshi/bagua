@@ -33,6 +33,214 @@ def topk(vec, k):
     # ret.copy_(vec[topkIndices])
     return topkIndices, vec[topkIndices]
 
+class SparsePyCudaIndepend2ParallelAlgorithmImpl(AlgorithmImpl):
+    def __init__(
+        self,
+        process_group: BaguaProcessGroup,
+        hierarchical: bool = True,
+        communication_interval: int = 1,
+        optimizer: Optimizer = None,
+        topK: int = 0,
+    ):
+        """
+        Implementation of the `Sparse` algorithm.
+
+        Args:
+            process_group (BaguaProcessGroup): The process group to work on.
+            hierarchical (bool): Enable hierarchical communication.
+            communication_interval (int): Number of iterations between two communication steps.
+            optimizer (Optimizer): A torch Optimizer initialized with model parameters.
+            topK:.
+        """
+        super(SparsePyCudaIndepend2ParallelAlgorithmImpl, self).__init__(process_group)
+        self.hierarchical = hierarchical
+        self.communication_interval = communication_interval
+        self.cuda_event = torch.cuda.Event()
+        self.optimizer = optimizer
+        self.rank = bagua.get_rank()
+        self.topK = topK
+        self.param_size = 0
+        for group in optimizer.param_groups:
+            for param in group["params"]:
+                self.param_size += param.numel()
+        self.works = bagua.get_world_size()
+        if self.topK == 0:
+            self.percent = 100
+            self.topK = self.param_size // self.percent
+        elif self.topK > self.param_size:
+            self.topK = self.param_size
+            self.percent = 1
+        else:
+            self.percent = self.param_size // self.topK
+        logging.info("---------param_size: {}, topK: {}".format(self.param_size, self.topK))
+
+    def _should_communicate(self, bagua_ddp: BaguaDistributedDataParallel) -> bool:
+        cur_step = bagua_ddp.bagua_train_step_counter - 1
+        return cur_step % self.communication_interval == 0
+
+    def init_tensors(self, bagua_ddp: BaguaDistributedDataParallel) -> List[BaguaTensor]:
+        parameters = bagua_ddp.bagua_build_params()
+        tensors = []
+        index = 0
+        self.topK = 0
+        for name, param in parameters:
+            param.index_pre = index
+            param.topK = param.numel() // self.percent
+            if param.topK < 8:
+                if param.numel() < 12:
+                    param.topK = param.numel()
+                elif param.numel() > 64:
+                    param.topK = param.numel() // 8
+                else:
+                    param.topK = param.numel() // 2
+            print("---param name: {}, size: {}, topK: {}".format(name, param.numel(), param.topK))
+            self.topK += param.topK
+            param.index_tensor = torch.zeros(param.topK, dtype=torch.int64).cuda()
+            param = param.bagua_ensure_grad().ensure_bagua_tensor(
+                name,
+                bagua_ddp.bagua_module_name,
+                getter_closure=lambda param: param.index_tensor,
+                setter_closure=lambda param, t: setattr(param, "index_tensor", t),
+            )
+            tensors.append(param)
+            index += param.numel()
+
+            # param.recv_messages = torch.zeros(param.topK*self.works, dtype=torch.float32).cuda()
+            # param.recv_indexes = torch.zeros(param.topK*self.works, dtype=torch.int64).cuda()
+            # param.send_messages = torch.zeros(param.topK, dtype=torch.float32).cuda()
+            # param.send_indexes = torch.zeros(param.topK, dtype=torch.int64).cuda()
+            # param.tensors_buffer = torch.zeros(param.numel(), dtype=torch.float32).cuda()
+
+        self._communication_tensor_names = set(name for name, _ in parameters)
+        assert len(self._communication_tensor_names) == len(
+            tensors
+        ), "tensor names should be unique"
+        print("-----------------init_tensors len(parameters): {}".format(len(parameters)))
+        print("-----------------init_tensors len(tensors): {}".format(len(tensors)))
+        return tensors
+
+    def tensors_to_buckets(
+        self, tensors: List[List[BaguaTensor]], do_flatten: bool
+    ) -> List[BaguaBucket]:
+        print("------rank: {}, tensors_to_buckets len(bucket): {} before".format(bagua.get_rank(), len(tensors)))
+        all_tensors = []
+        for idx, bucket in enumerate(tensors):
+            all_tensors.extend(bucket)
+
+        bagua_bucket = BaguaBucket(all_tensors, flatten=do_flatten, name=str(0))
+
+        return [bagua_bucket]
+
+    def init_forward_pre_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        def hook(input):
+            return
+
+        return hook
+
+    def init_backward_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        def hook(parameter_name, parameter):
+            if parameter_name in self._communication_tensor_names:
+                assert (
+                    parameter.bagua_backend_tensor().data_ptr()
+                    == parameter.index_tensor.data_ptr()
+                ), "bagua backend tensor data_ptr should match parameter index_tensor"
+                parameter.bagua_mark_communication_ready()
+
+        return hook
+
+    def init_post_backward_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        def hook():
+            bagua_ddp._bagua_backend.wait_pending_comm_ops()
+            # def compare_tmp():
+            #     for group in self.optimizer.param_groups:
+            #         for param in group["params"]:
+            #             if param.is_bagua_tensor():
+            #                 buffer = param.grad_clone.view(-1)
+            #                 _, indexes = torch.topk(buffer**2, param.topK)
+            #                 param.send_indexes.copy_(indexes)
+            #                 param.send_messages.copy_(buffer[indexes])
+            #                 bagua.allgather(param.send_indexes, param.recv_indexes)
+            #                 bagua.allgather(param.send_messages, param.recv_messages)
+            #                 torch.cuda.synchronize()
+            #                 param.tensors_buffer.zero_()
+            #                 for rank in range(self.works):
+            #                     start = rank * param.topK
+            #                     end = start + param.topK
+            #                     param.tensors_buffer[param.recv_indexes[start:end]] += param.recv_messages[start:end]
+            #                 param.tensors_buffer.div_(self.works)
+            #                 buffer[param.tensors_buffer.nonzero()] = 0.0
+            #                 buffer.add_(param.tensors_buffer)
+            #                 print("----SparsePyCudaIndepend2ParallelAlgorithmImpl init_post_backward_hook rank: {}, step: {}, grad_clone == grad: {}, grad nonzero size: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, torch.equal(param.grad_clone, param.grad), param.grad.count_nonzero().item()))
+
+            # compare_tmp()
+        return hook
+
+    def init_post_optimizer_step_hook(self, bagua_ddp: BaguaDistributedDataParallel):
+        def hook(optimizer: torch.optim.Optimizer):
+            return
+
+        return hook
+
+    def init_operations(
+        self,
+        bagua_ddp: BaguaDistributedDataParallel,
+        bucket: BaguaBucket,
+    ):
+        print("----SparsePyCudaIndepend2ParallelAlgorithmImpl init_operations rank: {}, step: {}, self.topK: {}, self.param_size: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, self.topK, self.param_size))
+        bucket._recv_value = torch.zeros(self.topK*self.works, dtype=torch.float32).cuda().ensure_bagua_tensor(
+            "recv_value", bagua_ddp.bagua_module_name
+        )
+        bucket._recv_index = torch.zeros(self.topK*self.works, dtype=torch.int64).cuda().ensure_bagua_tensor(
+            "recv_index", bagua_ddp.bagua_module_name
+        )
+        bucket._send_value = torch.zeros(self.topK, dtype=torch.float32).cuda().ensure_bagua_tensor(
+            "send_value", bagua_ddp.bagua_module_name
+        )
+        bucket._other_value = torch.zeros(self.param_size, dtype=torch.float32).cuda().ensure_bagua_tensor(
+            "other_value", bagua_ddp.bagua_module_name
+        )
+        torch.cuda.synchronize()
+        bucket.clear_ops()
+        def set_index(*args):
+            send_values = []
+            other_values = []
+            size = 0
+            for tensor in bucket.tensors:
+                buffer = tensor.grad.view(-1)
+                _, indexes = torch.topk(buffer**2, tensor.topK)
+                send_values.append(buffer[indexes])
+                other_values.append(buffer)
+                tensor.bagua_getter_closure().copy_(indexes + tensor.index_pre)
+                size += tensor.bagua_getter_closure().numel()
+
+                # tensor.grad_clone = tensor.grad.clone().detach()
+                # print("----SparsePyCudaIndepend2ParallelAlgorithmImpl set_index rank: {}, step: {}, all.topK: {}, tensor.topK: {}, values.len: {}, tensor.len: {}, index_pre: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, self.topK, tensor.topK, buffer[indexes].numel(), tensor.numel(), tensor.index_pre))
+            bucket._send_value.bagua_getter_closure().copy_(torch.cat([t for t in send_values]))
+            bucket._other_value.bagua_getter_closure().copy_(torch.cat([t for t in other_values]))
+            # print("----SparsePyCudaIndepend2ParallelAlgorithmImpl set_index rank: {}, step: {}, indexes.len: {}, values.len(): {}, other_tensor.len: {}.".format(self.rank, bagua_ddp.bagua_train_step_counter, size, bucket._send_value.bagua_getter_closure().numel(), bucket._other_value.bagua_getter_closure().numel()))
+
+        def get_index(*args):
+            size = 0
+            values = bucket._other_value.bagua_getter_closure()
+            for tensor in bucket.tensors:
+                count = tensor.numel()
+                tmp_buffer = values[size:count+size]
+                tmp_tensor = tensor.grad.view(-1)
+                tmp_tensor[tmp_buffer.nonzero()] = 0.0
+                tmp_tensor.add_(tmp_buffer)
+                size += count
+
+        bucket.append_python_op(set_index, group=self.process_group)
+        bucket.append_centralized_sparse_py_cuda_parallel_synchronous_op(
+            recv_value=bucket._recv_value,
+            recv_index=bucket._recv_index,
+            send_value=bucket._send_value,
+            other_value=bucket._other_value,
+            hierarchical=False,
+            group=self.process_group,
+        )
+        bucket.append_python_op(get_index, group=self.process_group)
+
 class SparsePyCudaIndependParallelAlgorithmImpl(AlgorithmImpl):
     def __init__(
         self,
@@ -2197,6 +2405,36 @@ class SparseInplaceAlgorithmImpl(AlgorithmImpl):
             group=self.process_group,
         )
         # bucket.append_python_op(log_func, group=self.process_group)
+
+class SparsePyCudaIndepend2ParallelAlgorithm(Algorithm):
+    def __init__(
+        self,
+        hierarchical: bool = True,
+        communication_interval: int = 1,
+        optimizer: Optimizer = None,
+        topK: int = 0,
+    ):
+        """
+        Create an instance of the Sparse algorithm.
+
+        Args:
+            hierarchical (bool): Enable hierarchical communication.
+            communication_interval (int): Number of iterations between two communication steps.
+            optimizer (Optimizer): A torch Optimizer initialized with model parameters.
+        """
+        self.hierarchical = hierarchical
+        self.communication_interval = communication_interval
+        self.optimizer = optimizer
+        self.topK = topK
+
+    def reify(self, process_group: BaguaProcessGroup) -> SparsePyCudaIndepend2ParallelAlgorithmImpl:
+        return SparsePyCudaIndepend2ParallelAlgorithmImpl(
+            process_group,
+            hierarchical=self.hierarchical,
+            communication_interval=self.communication_interval,
+            optimizer=self.optimizer,
+            topK=self.topK,
+        )
 
 class SparsePyCudaIndependParallelAlgorithm(Algorithm):
     def __init__(
