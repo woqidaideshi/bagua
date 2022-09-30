@@ -562,10 +562,10 @@ sparse_gather(const float *input, const int *index, int index_num_element, float
     int idy = blockIdx.y * blockDim.y + threadIdx.y;
     const int stride = blockDim.x * gridDim.x;
 
-    for (int i = idx; i < output_num_element ; i += stride) {
-        int o = idy + i;
-        output[o] = 0.0;
-    }
+    // for (int i = idx; i < output_num_element ; i += stride) {
+    //     int o = idy + i;
+    //     output[o] = 0.0;
+    // }
     for (int i = idx; i < index_num_element * stride; i += stride) {
         int o = idy + i;
         int k = idy + (i - idx) * 2;
@@ -842,6 +842,7 @@ void sparse_gather_host(float *input, int *index, int index_num_element, float *
     // CUDACHECK(cudaDeviceSynchronize());
     // CUDACHECK(cudaMemset(output, 0.0f, output_num_element * sizeof(float)));
     // CUDACHECK(cudaDeviceSynchronize());
+    CUDACHECK(cudaMemsetAsync(output, 0.0f, output_num_element * sizeof(float), stream));
     sparse_gather<<<1, 1, 0, stream>>>(input, index, index_num_element, output, output_num_element);
     CUDACHECK(cudaGetLastError());
 }
@@ -892,18 +893,20 @@ void sparse_extract_parallel_host(float *input, int *index, int index_num_elemen
 /// method 1:
 void sparse_gather_parallel_host(float *input, int *index, int index_num_element, float *output, int output_num_element, int num_chunks, cudaStream_t stream) {
     if (output_num_element > 0) {
-        CUDACHECK(cudaDeviceSynchronize());
-        CUDACHECK(cudaMemset(output, 0.0f, output_num_element * sizeof(float)));
-        CUDACHECK(cudaDeviceSynchronize());
+        // CUDACHECK(cudaDeviceSynchronize());
+        // CUDACHECK(cudaMemset(output, 0.0f, output_num_element * sizeof(float)));
+        // CUDACHECK(cudaDeviceSynchronize());
+        CUDACHECK(cudaMemsetAsync(output, 0.0f, output_num_element * sizeof(float), stream));
     }
     sparse_gather_parallel<<<DIVUP(index_num_element * 2, 1024), 1024, 0, stream>>>(input, index, index_num_element, output);
     CUDACHECK(cudaGetLastError());
 }
 /// method 2:
 // void sparse_gather_parallel_host(float *input, int *index, int index_num_element, float *output, int output_num_element, int num_chunks, cudaStream_t stream) {
-//     CUDACHECK(cudaDeviceSynchronize());
-//     CUDACHECK(cudaMemset(output, 0.0f, output_num_element * sizeof(float)));
-//     CUDACHECK(cudaDeviceSynchronize());
+//     // CUDACHECK(cudaDeviceSynchronize());
+//     // CUDACHECK(cudaMemset(output, 0.0f, output_num_element * sizeof(float)));
+//     // CUDACHECK(cudaDeviceSynchronize());
+//     CUDACHECK(cudaMemsetAsync(output, 0.0f, output_num_element * sizeof(float), stream));
 //     int index_num = index_num_element / num_chunks;
 //     float *start_input = input;
 //     int *start_index = index;
