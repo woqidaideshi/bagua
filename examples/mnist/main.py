@@ -39,6 +39,7 @@ class Net(nn.Module):
 
 
 def train(args, model, train_loader, optimizer, epoch):
+    ranks = bagua.get_world_size()
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
 
@@ -55,7 +56,7 @@ def train(args, model, train_loader, optimizer, epoch):
             logging.info(
                 "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
                     epoch,
-                    batch_idx * len(data),
+                    batch_idx * len(data) * ranks,
                     len(train_loader.dataset),
                     100.0 * batch_idx / len(train_loader),
                     loss.item(),
@@ -181,9 +182,10 @@ def main():
     torch.cuda.set_device(bagua.get_local_rank())
     bagua.init_process_group()
 
-    logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.ERROR)
-    if bagua.get_rank() == 0:
-        logging.getLogger().setLevel(logging.INFO)
+    # logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.ERROR)
+    # if bagua.get_rank() == 0:
+    #    logging.getLogger().setLevel(logging.INFO)
+    logging.getLogger().setLevel(logging.INFO)
 
     train_kwargs = {"batch_size": args.batch_size}
     test_kwargs = {"batch_size": args.test_batch_size}
