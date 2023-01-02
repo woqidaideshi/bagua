@@ -5,13 +5,13 @@ name: Python package check
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master-ci ]
   pull_request:
-    branches: [ master ]
+    branches: [ master-ci ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container: baguasys/bagua:master-pytorch-1.9.0-cuda11.1-cudnn8
     steps:
     - uses: actions/checkout@v2
